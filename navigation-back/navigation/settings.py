@@ -38,7 +38,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'map',
-    #'django-crontab',
 ]
 
 MIDDLEWARE = [
@@ -136,4 +135,3 @@ APPEND_SLASH = False
 IMAGE_DIR = os.path.join(BASE_DIR, 'media', 'image')
 
 # #minutes   hours  day   month  week   command
-# CRONJOBS = []

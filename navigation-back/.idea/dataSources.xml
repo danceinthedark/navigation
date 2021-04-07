@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
-    <data-source source="LOCAL" name="db" uuid="c74a84df-47c8-42cc-b08d-2bb7d350b6f6">
+    <data-source source="LOCAL" name="db [2]" uuid="f4eaa600-2bbc-40f8-abe5-9628ff7f905d">
       <driver-ref>sqlite.xerial</driver-ref>
       <synchronize>true</synchronize>
       <jdbc-driver>org.sqlite.JDBC</jdbc-driver>
-      <jdbc-url>jdbc:sqlite:E:\dxw\教学课件\大二\大二下\数据结构\navigation\db.sqlite3</jdbc-url>
+      <jdbc-url>jdbc:sqlite:E:\dxw\教学课件\大二\大二下\数据结构\navigation\navigation-back\db.sqlite3</jdbc-url>
       <working-dir>$ProjectFileDir$</working-dir>
       <libraries>
         <library>

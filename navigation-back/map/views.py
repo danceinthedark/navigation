@@ -64,6 +64,9 @@ def location(request):
 @csrf_exempt
 @require_POST
 def search_path(request):
+    global last_update_road
+    random_road((timezone.now() - last_update_road).seconds)
+    last_update_road = timezone.now()
     pid = request.POST['pid']
     approach = [int(i) for i in request.POST['approach'].split(',')]
     dest = Point.objects.get(id=pid)
@@ -76,7 +79,6 @@ def search_path(request):
     result['time_bike']['move_model'] = 'bike'
     result['approach_dist_walk'] = find_approach_dist(people.pos[0], people.pos[1], dest, approach, speeds['walk'])
     result['approach_dist_walk']['move_model'] = 'walk'
-    # todO approach_model
     return JsonResponse({"result": "success", "solution": result})
 
 
@@ -120,10 +122,29 @@ def log(request):
     return JsonResponse({"result": "success", "log": people.log})
 
 
-def random_road():
-    for item in Road.objects.all():
-        item.rate = random.random() / 2 + 0.5
+@csrf_exempt
+@require_POST
+def around(request):
+    points = list(Point.objects.filter(name__regex='^[\S\s]+'))
+    points.sort(key=lambda item: eucid_distance(people.pos[0], people.pos[1], item))
+    near_points = points[:5]
+    points = []
+    for point in near_points:
+        points.append({'pid': point.id, 'pos': (point.x, point.y), 'name': point.name, 'url': point.img})
+    return JsonResponse({'result': "success", "points": points})
+
+
+def random_road(t):
+    t = min(t, 10)
+    n = Road.objects.count()
+    if t == 0:
+        t = n
+    global now
+    for i in range(now, min(n + 1, now + t)):
+        item = Road.objects.get(id=i)
+        item.rate = random.random()
         item.save()
+    now += t
 
 
 def move(t):
@@ -170,7 +191,7 @@ def import_data():
         point2 = Point.objects.get(id=road_info[6])
         point1.edges.add(road)
         point2.edges.add(road)
-    random_road()
+    random_road(0)
     pid.close()
 
     pid = open('line_num_LineNumOfDot.txt', encoding='utf-8')
@@ -206,9 +227,11 @@ class Move_point:
 
 
 people = Move_point(63.88703487503486, 703.4870764730676)
-walk_speed = [10, 10]
-bike_speed = [10, 24]
+walk_speed = [5, 5]
+bike_speed = [5, 12]
 speeds = {'walk': walk_speed, 'bike': bike_speed}
 floyd()
+last_update_road = timezone.now()
+now = 1
 # import_data()
-# random_road()
+# random_road(0)
