@@ -1,7 +1,7 @@
 import collections
 from math import *
 
-from .models import Point
+from .models import Road, Point
 
 
 def is_on(x, y, road):
@@ -17,29 +17,21 @@ def eucid_distance(x, y, approach_point):
     return sqrt(sqr(approach_point.x - x) + sqr(approach_point.y - y))
 
 
-dist = {}
-
-
-def floyd(last, campus):
-    last += 1
-    n = last + campus.points.count()
+def floyd():
+    n = Point.objects.count() + 1
     global dist
-    if campus in dist:
-        return
-    g = [1e9 for i in range(n)]
-    f = [g[:] for j in range(n)]
-    for k in range(last, n):
-        f[k][k] = 0
-    for road in campus.roads.all():
+    dist = [[1e9 for i in range(n)] for j in range(n)]
+    for k in range(1, n):
+        dist[k][k] = 0
+    for road in Road.objects.all():
         point0 = road.points.all()[0].id
         point1 = road.points.all()[1].id
-        f[point0][point1] = f[point1][point0] = road.long
+        dist[point0][point1] = dist[point1][point0] = road.long
 
-    for k in range(last, n):
-        for i in range(last, n):
-            for j in range(last, n):
-                f[i][j] = min(f[i][k] + f[k][j], f[i][j])
-    dist[campus] = f
+    for k in range(1, n):
+        for i in range(1, n):
+            for j in range(1, n):
+                dist[i][j] = min(dist[i][k] + dist[k][j], dist[i][j])
 
 
 def eucid_time(x, y, approach_point, speeds):
@@ -50,13 +42,13 @@ def eucid_time(x, y, approach_point, speeds):
     return 0
 
 
-def cal(campus, x, y, approach_point, dest):
-    return eucid_distance(x, y, approach_point) + dist[campus][approach_point.id][dest.id]
+def cal(x, y, approach_point, dest):
+    return eucid_distance(x, y, approach_point) + dist[approach_point.id][dest.id]
 
 
-def find_nearer_point(campus, start_x, start_y):
+def find_nearer_point(start_x, start_y):
     nearer_points = []
-    for road in campus.roads.all():
+    for road in Road.objects.all():
         if is_on(start_x, start_y, road):
             for point in road.points.all():
                 nearer_points.append(point)
@@ -67,44 +59,31 @@ def find_nearer_point(campus, start_x, start_y):
     return nearer_points
 
 
-def find_path_dist(campus, start_x, start_y, dest, speeds):
-    nearer_points = find_nearer_point(campus, start_x, start_y)
+def find_path_dist(start_x, start_y, dest, speeds):
+    nearer_points = find_nearer_point(start_x, start_y)
     nearest_point = nearer_points[0]
-    nearest_dist = cal(campus, start_x, start_y, nearest_point, dest)
+    nearest_dist = cal(start_x, start_y, nearest_point, dest)
     for point in nearer_points:
-        if cal(campus, start_x, start_y, point, dest) < nearest_dist:
-            nearest_dist = cal(campus, start_x, start_y, point, dest)
+        if cal(start_x, start_y, point, dest) < nearest_dist:
+            nearest_dist = cal(start_x, start_y, point, dest)
             nearest_point = point
     path = []
-    # for point in campus.points.all():
-    #     if abs(dist[campus][nearest_point.id][dest.id] - (
-    #             dist[campus][nearest_point.id][point.id] + dist[campus][point.id][dest.id])) < 1e-7:
-    #         path.append(point)
-    # path.sort(key=lambda x: dist[campus][nearest_point.id][x.id])
-    #
-    # time = eucid_time(start_x, start_y, path[0], speeds)
-    # for i in range(len(path) - 1):
-    #     s = path[i]
-    #     t = path[i + 1]
-    #     edge = campus.roads.filter(points=s).filter(points=t)[0]
-    #     time += edge.long / (speeds[edge.type] * edge.rate)
-    time = eucid_time(start_x, start_y, nearest_point, speeds)
-    x = nearest_point
-    path.append(x.id)
-    while x != dest:
-        for edge in x.edges.all():
-            y = edge.points.exclude(id=x.id)[0]
-            if abs(dist[campus][nearest_point.id][dest.id] -
-                   (dist[campus][nearest_point.id][y.id] + dist[campus][y.id][dest.id])) < 1e-7 and \
-                dist[campus][nearest_point.id][x.id]<dist[campus][nearest_point.id][y.id]:
-                x = y
-                time += edge.long / (speeds[edge.type] * edge.rate)
-                break
-        path.append(x.id)
-    return {'path': path, 'dist': cal(campus, start_x, start_y, nearest_point, dest), 'time': time}
+    for point in Point.objects.all():
+        if abs(dist[nearest_point.id][dest.id] - (dist[nearest_point.id][point.id] + dist[point.id][dest.id])) < 1e-7:
+            path.append(point)
+    path.sort(key=lambda x: dist[nearest_point.id][x.id])
+
+    time = eucid_time(start_x, start_y, path[0], speeds)
+    for i in range(len(path) - 1):
+        s = path[i]
+        t = path[i + 1]
+        edge = Road.objects.filter(points=s).filter(points=t)[0]
+        time += edge.long / (speeds[edge.type] * edge.rate)
+    path = [item.id for item in path]
+    return {'path': path, 'dist': cal(start_x, start_y, nearest_point, dest), 'time': time}
 
 
-def dijkstra_time(campus, start_x, start_y, start_point, dest, speeds):
+def dijkstra_time(start_x, start_y, start_point, dest, speeds):
     n = Point.objects.count()
     time_consuming = [1e10] * (n + 1)
     visit = [0] * (n + 1)
@@ -134,23 +113,23 @@ def dijkstra_time(campus, start_x, start_y, start_point, dest, speeds):
         if point != start_point.id:
             path.append(front_point[point])
     path.reverse()
-    path = [campus.points.get(id=item) for item in path]
+    path = [Point.objects.get(id=item) for item in path]
     dist = eucid_distance(start_x, start_y, path[0])
     for i in range(len(path) - 1):
         s = path[i]
         t = path[i + 1]
-        edge = campus.roads.filter(points=s).filter(points=t)[0]
+        edge = Road.objects.filter(points=s).filter(points=t)[0]
         dist += edge.long
     return [path, dist, time_consuming[dest.id] + eucid_time(start_x, start_y, start_point, speeds)]
 
 
-def find_path_time(campus, start_x, start_y, dest, speeds):
-    nearer_points = find_nearer_point(campus, start_x, start_y)
+def find_path_time(start_x, start_y, dest, speeds):
+    nearer_points = find_nearer_point(start_x, start_y)
     shortest_path = []
     shortest_time = 1e9
     shortest_dist = 1e9
     for point in nearer_points:
-        [path, dist, time] = dijkstra_time(campus, start_x, start_y, point, dest, speeds)
+        [path, dist, time] = dijkstra_time(start_x, start_y, point, dest, speeds)
         if time < shortest_time:
             shortest_path = path
             shortest_time = time
@@ -159,8 +138,8 @@ def find_path_time(campus, start_x, start_y, dest, speeds):
     return {'path': shortest_path, 'dist': shortest_dist, 'time': shortest_time}
 
 
-def floyd_dp(campus, start_x, start_y, dest, approach, speeds):
-    nearer_points = find_nearer_point(campus, start_x, start_y)
+def floyd_dp(start_x, start_y, dest, approach, speeds):
+    nearer_points = find_nearer_point(start_x, start_y)
     approach.append(dest.id)
     n = len(approach)
     f = [[1e9 if i != j else 0 for i in range(n)] for j in range(n)]
@@ -168,11 +147,10 @@ def floyd_dp(campus, start_x, start_y, dest, approach, speeds):
     for point in nearer_points:
         for point_id in range(n):
             g[point_id][1 << point_id] = min(g[point_id][1 << point_id],
-                                             cal(campus, start_x, start_y, point,
-                                                 campus.points.get(id=approach[point_id])))
+                                             cal(start_x, start_y, point, Point.objects.get(id=approach[point_id])))
     for i in range(n):
         for j in range(n):
-            f[i][j] = dist[campus][approach[i]][approach[j]]
+            f[i][j] = dist[approach[i]][approach[j]]
 
     last = [[-1 for i in range(1 << n)] for j in range(n)]
     for j in range(1 << n):
@@ -188,12 +166,12 @@ def floyd_dp(campus, start_x, start_y, dest, approach, speeds):
     while x >= 0:
         y = last[x][q]
         if y >= 0:
-            point = campus.points.get(id=approach[y])
+            point = Point.objects.get(id=approach[y])
             point = [point.x, point.y]
         else:
             point = [start_x, start_y]
         q ^= 1 << x
-        ans = find_path_dist(campus, point[0], point[1], Point.objects.get(id=approach[x]), speeds)
+        ans = find_path_dist(point[0], point[1], Point.objects.get(id=approach[x]), speeds)
         ans['path'].reverse()
         if 'path' not in result:
             result = ans
@@ -207,8 +185,8 @@ def floyd_dp(campus, start_x, start_y, dest, approach, speeds):
     return result
 
 
-def find_approach_dist(campus, start_x, start_y, dest, approach, speeds):
+def find_approach_dist(start_x, start_y, dest, approach, speeds):
     if not len(approach):
-        return find_path_dist(campus, start_x, start_y, dest, speeds)
+        return find_path_dist(start_x, start_y, dest, speeds)
     else:
-        return floyd_dp(campus, start_x, start_y, dest, approach, speeds)
+        return floyd_dp(start_x, start_y, dest, approach, speeds)
