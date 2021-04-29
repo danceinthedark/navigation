@@ -1,7 +1,9 @@
+import os
 import random
 import re
 
 import numpy as np
+from django.conf import settings
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -360,3 +362,16 @@ schoolbus_table = [2, 4, 7, 9, 10, 12]  # one day is 14minutes，denote 14 hours
 schoolbus_cost = 1
 bus_cost = 2
 start_time = timezone.now()
+
+
+def import_picture():
+    files = os.listdir(settings.IMAGE_DIR)
+    for file_name in files:
+        ids = file_name.replace('.svg', '').split('_')
+        for id in ids:
+            item = Point.objects.get(id=id)
+            item.img = 'http://127.0.0.1:8000/image/{}'.format(file_name)
+            item.save()
+
+
+import_picture()
