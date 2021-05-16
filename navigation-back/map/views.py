@@ -1,5 +1,4 @@
 import os
-import random
 
 import numpy as np
 from django.conf import settings
@@ -30,7 +29,7 @@ def give_map(request):
                     interact = True
                 son.append(point.x)
                 son.append(point.y)
-            if interact == True:
+            if interact:
                 continue
             road_info['pos'] = son
             road_info['rid'] = road.id
@@ -45,13 +44,6 @@ def give_map(request):
         return JsonResponse({"result": "fail"})
 
 
-@csrf_exempt
-@require_POST
-def location(request):
-    move((timezone.now() - people.last_ask).seconds)
-    people.last_ask = timezone.now()
-    return JsonResponse({"result": "success", "x": float(people.pos[0]), "y": float(people.pos[1]),
-                         "z": int(people.pos[2]), 'id': people.root.id}, safe=False)
 
 
 def choose_bus(start, end, time):
@@ -75,19 +67,17 @@ def choose_bus(start, end, time):
 @csrf_exempt
 @require_POST
 def search_path(request):
-    global last_update_road
-    random_road((timezone.now() - last_update_road).seconds)
-    last_update_road = timezone.now()
+    random_road()
     dest = request.POST['dest']
     dest = Point.objects.get(id=dest)
     x = float(request.POST['x'])
     y = float(request.POST['y'])
     z = float(request.POST['z'])
-    id = int(request.POST['id'])
+    pid = int(request.POST['id'])
     approach = [int(i) for i in request.POST['approach'].split(',')]
 
     result = {}
-    root1 = id if id < 3 else Point.objects.get(id=id).belong.id
+    root1 = pid if pid < 3 else Point.objects.get(id=pid).belong.id
     root2 = dest.belong.id if dest.belong.id < 3 else Point.objects.get(id=dest.belong.id).belong.id
     approach1 = []
     approach2 = []
@@ -98,33 +88,49 @@ def search_path(request):
             approach1.append(item)
         elif root == root2:
             approach2.append(item)
+    cost_time = []
+    last = timezone.now()
     if root1 == root2:
-        result['dist'] = find_path_dist(id, x, y, z, dest, speeds['walk'], 'walk')[0]
-        result['time'] = find_path_time(id, x, y, z, dest, speeds['walk'], 'walk')[0]
-        result['transportation'] = find_path_time(id, x, y, z, dest, speeds['bike'], 'bike')[0]
-        result['approach'] = find_approach_dist(id, x, y, z, dest, approach1, speeds['bike'], 'bike')[0]
+        result['dist'] = find_path_dist(pid, x, y, z, dest, speeds['walk'], 'walk')[0]
+        cost_time.append((timezone.now() - last).microseconds)
+        last = timezone.now()
+        result['time'] = find_path_time(pid, x, y, z, dest, speeds['walk'], 'walk')[0]
+        cost_time.append((timezone.now() - last).microseconds)
+        last = timezone.now()
+        result['transportation'] = find_path_time(pid, x, y, z, dest, speeds['bike'], 'bike')[0]
+        cost_time.append((timezone.now() - last).microseconds)
+        last = timezone.now()
+        result['approach'] = find_approach_dist(pid, x, y, z, dest, approach1, speeds['bike'], 'bike')[0]
+        cost_time.append((timezone.now() - last).microseconds)
     else:
         door1 = Point.objects.get(id=root1).inner_points.get(name__contains="校门")
         door2 = Point.objects.get(id=root2).inner_points.get(name__contains="校门")
-        [result['dist'], time] = find_path_dist(id, x, y, z, door1, speeds['walk'], 'walk')
+        [result['dist'], time] = find_path_dist(pid, x, y, z, door1, speeds['walk'], 'walk')
         result['dist'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
         result['dist'] += find_path_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
+        cost_time.append((timezone.now() - last).microseconds)
+        last = timezone.now()
 
-        [result['time'], time] = find_path_time(id, x, y, z, door1, speeds['walk'], 'walk')
+        [result['time'], time] = find_path_time(pid, x, y, z, door1, speeds['walk'], 'walk')
         result['time'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
         result['time'] += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
+        cost_time.append((timezone.now() - last).microseconds)
+        last = timezone.now()
 
-        [result['transportation'], time] = find_path_time(id, x, y, z, door1, speeds['bike'], 'bike')
+        [result['transportation'], time] = find_path_time(pid, x, y, z, door1, speeds['bike'], 'bike')
         result['transportation'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
         result['transportation'] += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['bike'],
                                                    'bike')
+        cost_time.append((timezone.now() - last).microseconds)
+        last = timezone.now()
 
-        [result['approach'], time] = find_approach_dist(id, x, y, z, door1, approach1, speeds['bike'], 'bike')
+        [result['approach'], time] = find_approach_dist(pid, x, y, z, door1, approach1, speeds['bike'], 'bike')
         result['approach'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
         result['approach'] += find_approach_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, approach1,
                                                  speeds['bike'], 'bike')[0]
+        cost_time.append((timezone.now() - last).microseconds)
 
-    return JsonResponse({"result": "success", "solution": result})
+    return JsonResponse({"result": "success", "cost_time": cost_time, "solution": result})
 
 
 @csrf_exempt
@@ -194,17 +200,8 @@ def navigation(request):
 @csrf_exempt
 @require_POST
 def finish(request):
-    if len(people.path) > 1:
-        people.path.pop()
-        people.pos = np.array(people.path[-1]['path'][-1])
-        people.path[-1]['path'].pop()
-        people.corner_time = 0
-    elif len(people.path) == 1:
-        people.pos = np.array(people.path[0]['path'][0])
-        people.path.pop()
-        people.corner_time = 0
+    store()
     return JsonResponse({"result": "success"})
-
 
 @csrf_exempt
 @require_POST
@@ -224,20 +221,6 @@ def around(request):
     return JsonResponse({'result': "success", "points": points})
 
 
-def random_road(t):
-    t = min(t, 10)
-    n = Road.objects.count()
-    if t == 0:
-        t = n
-    global now
-    global road_list
-    road_list = Road.objects.all()[now:min(n + 1, now + t)]
-    for item in road_list:
-        item.rate = random.random()
-        item.save()
-    now += t
-    if now > Road.objects.count():
-        now = 1
 
 
 # def move(t):
@@ -379,8 +362,8 @@ def import_picture():
     files = os.listdir(settings.IMAGE_DIR)
     for file_name in files:
         ids = file_name.replace('.svg', '').split('_')
-        for id in ids:
-            item = Point.objects.get(id=id)
+        for pid in ids:
+            item = Point.objects.get(id=pid)
             item.img = 'http://127.0.0.1:8000/image/{}'.format(file_name)
             item.save()
 
