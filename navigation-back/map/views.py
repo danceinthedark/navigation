@@ -1,6 +1,5 @@
 import os
 import random
-import re
 
 import numpy as np
 from django.conf import settings
@@ -10,7 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .find_path import *
-from .models import Road, Point, Campus
+from .models import Road, Point
 
 
 # Create your views here.
@@ -20,41 +19,28 @@ from .models import Road, Point, Campus
 @require_POST
 def give_map(request):
     try:
-        campus = Campus.objects.get(campus=request.POST['campus'])
+        root = Point.objects.get(id=request.POST['id'])
         roads = []
-        for road in campus.roads.all():
+        for road in root.inner_roads.all():
             son = []
             road_info = {}
+            interact = False
             for point in road.points.all():
+                if point.belong != root:
+                    interact = True
                 son.append(point.x)
                 son.append(point.y)
+            if interact == True:
+                continue
             road_info['pos'] = son
             road_info['rid'] = road.id
             road_info['jam_rate'] = road.rate
             roads.append(road_info)
 
         points = []
-        for point in campus.points.all():
-            points.append({'pid': point.id, 'pos': (point.x, point.y), 'name': point.name, 'url': point.img})
+        for point in root.inner_points.all():
+            points.append({'pid': point.id, 'pos': (point.x, point.y), 'url': point.img})
         return JsonResponse({"result": "success", "roads": roads, "points": points})
-    except:
-        return JsonResponse({"result": "fail"})
-
-
-@csrf_exempt
-@require_POST
-def search_dest(request):
-    try:
-        dest = request.POST['dest']
-        possible_points = Point.objects.filter(name__contains=dest)
-        points = []
-        for point in possible_points:
-            points.append({'pid': point.id, 'pos': (point.x, point.y),
-                           'url': point.img, 'name': point.name, 'in_campus': point.campus == people.campus})
-            for door in point.doors.all():
-                points.append({'pid': door.id, 'pos': (door.x, door.y), 'url': door.img,
-                               'in_campus': point.campus == people.campus})
-        return JsonResponse({"result": "success", "points": points})
     except:
         return JsonResponse({"result": "fail"})
 
@@ -64,10 +50,11 @@ def search_dest(request):
 def location(request):
     move((timezone.now() - people.last_ask).seconds)
     people.last_ask = timezone.now()
-    return JsonResponse({"result": "success", "x": float(people.pos[0]), "y": float(people.pos[1]) ,'finish':people.finish}, safe=False)
+    return JsonResponse({"result": "success", "x": float(people.pos[0]), "y": float(people.pos[1]),
+                         "z": int(people.pos[2]), 'id': people.root.id}, safe=False)
 
 
-def choose_bus(f, t, time):
+def choose_bus(start, end, time):
     time = (time + (timezone.now() - start_time).seconds) / 60
     time -= time // 60 * 60
     school_bus = 0
@@ -76,69 +63,13 @@ def choose_bus(f, t, time):
             school_bus = launch - time + 1
             break
     bus = 1 - (time - int(time)) + bus_cost
+    dest = 1 if start == Point.objects.get(id=2) else 0
     if school_bus > bus:
-        return {'path': [f, t], 'time': bus * 3600, 'way': 'bus'}
+        return [{'type': 2, 'path': [(start.x, start.y, start.z), (end.x, end.y, end.z)], 'dist': 0, 'time': bus * 3600,
+                 'move_model': 'bus', 'id': dest}]
     else:
-        return {'path': [f, t], 'time': school_bus * 3600, 'way': 'school_bus'}
-
-
-@csrf_exempt
-@require_POST
-def search_path_campus(request):
-    global last_update_road
-    random_road((timezone.now() - last_update_road).seconds)
-    last_update_road = timezone.now()
-    pid = request.POST['pid']
-    approach = [int(i) for i in request.POST['approach'].split(',')]
-    approach1 = []
-    approach2 = []
-    for point in approach:
-        if Point.objects.get(id=point).campus == people.campus:
-            approach1.append(point)
-        else:
-            approach2.append(point)
-
-    dest = Point.objects.get(id=pid)
-    door = people.campus.points.get(name='校门')
-    new_door = dest.campus.points.get(name='校门')
-    result = {}
-    # first to gateway and choose bus
-    result['dist_walk'] = {}
-    result['dist_walk']['path'] = [
-        find_path_dist(people.campus, people.pos[0], people.pos[1], door, speeds['walk'])]
-    result['dist_walk']['path'].append(choose_bus(door.id, new_door.id, result['dist_walk']['path'][0]['time']))
-    result['dist_walk']['move_model'] = 'walk'
-
-    result['time_walk'] = {}
-    result['time_walk']['path'] = [
-        find_path_time(people.campus, people.pos[0], people.pos[1], door, speeds['walk'])]
-    result['time_walk']['path'].append(choose_bus(door.id, new_door.id, result['time_walk']['path'][0]['time']))
-    result['time_walk']['move_model'] = 'walk'
-
-    result['time_bike'] = {}
-    result['time_bike']['path'] = [
-        find_path_time(people.campus, people.pos[0], people.pos[1], door, speeds['bike'])]
-    result['time_bike']['path'].append(choose_bus(door.id, new_door.id, result['time_bike']['path'][0]['time']))
-    result['time_bike']['move_model'] = 'bike'
-
-    result['approach_dist_walk'] = {}
-    result['approach_dist_walk']['path'] = [
-        find_approach_dist(people.campus, people.pos[0], people.pos[1], door, approach1, speeds['walk'])]
-    result['approach_dist_walk']['path'].append(
-        choose_bus(door.id, new_door.id, result['approach_dist_walk']['path'][0]['time']))
-    result['approach_dist_walk']['move_model'] = 'walk'
-
-    # from door to dest
-
-    result['dist_walk']['path'].append(
-        find_path_dist(dest.campus, new_door.x, new_door.y, dest, speeds['walk']))
-    result['time_walk']['path'].append(
-        find_path_time(dest.campus, new_door.x, new_door.y, dest, speeds['walk']))
-    result['time_bike']['path'].append(
-        find_path_time(dest.campus, new_door.x, new_door.y, dest, speeds['bike']))
-    result['approach_dist_walk']['path'].append(
-        find_approach_dist(dest.campus, new_door.x, new_door.y, dest, approach2, speeds['walk']))
-    return JsonResponse({"result": "success", "solution": result})
+        return [{'type': 2, 'path': [(start.x, start.y, start.z), (end.x, end.y, end.z)], 'dist': 0, 'time': bus * 3600,
+                 'move_model': 'bus', 'id': dest}]
 
 
 @csrf_exempt
@@ -147,79 +78,131 @@ def search_path(request):
     global last_update_road
     random_road((timezone.now() - last_update_road).seconds)
     last_update_road = timezone.now()
-    pid = request.POST['pid']
+    dest = request.POST['dest']
+    dest = Point.objects.get(id=dest)
+    x = float(request.POST['x'])
+    y = float(request.POST['y'])
+    z = float(request.POST['z'])
+    id = int(request.POST['id'])
     approach = [int(i) for i in request.POST['approach'].split(',')]
-    dest = Point.objects.get(id=pid)
-    result = dict()
-    result['dist_walk'] = find_path_dist(people.campus, people.pos[0], people.pos[1], dest, speeds['walk'])
-    result['dist_walk']['move_model'] = 'walk'
-    result['time_walk'] = find_path_time(people.campus, people.pos[0], people.pos[1], dest, speeds['walk'])
-    result['time_walk']['move_model'] = 'walk'
-    result['time_bike'] = find_path_time(people.campus, people.pos[0], people.pos[1], dest, speeds['bike'])
-    result['time_bike']['move_model'] = 'bike'
-    result['approach_dist_walk'] = find_approach_dist(people.campus, people.pos[0], people.pos[1], dest, approach,
-                                                      speeds['walk'])
-    result['approach_dist_walk']['move_model'] = 'walk'
+
+    result = {}
+    root1 = id if id < 3 else Point.objects.get(id=id).belong.id
+    root2 = dest.belong.id if dest.belong.id < 3 else Point.objects.get(id=dest.belong.id).belong.id
+    approach1 = []
+    approach2 = []
+    for item in approach:
+        point = Point.objects.get(id=item)
+        root = point.belong.id if point.belong.id < 3 else Point.objects.get(id=point.belong.id).belong.id
+        if root == root1:
+            approach1.append(item)
+        elif root == root2:
+            approach2.append(item)
+    if root1 == root2:
+        result['dist'] = find_path_dist(id, x, y, z, dest, speeds['walk'], 'walk')[0]
+        result['time'] = find_path_time(id, x, y, z, dest, speeds['walk'], 'walk')[0]
+        result['transportation'] = find_path_time(id, x, y, z, dest, speeds['bike'], 'bike')[0]
+        result['approach'] = find_approach_dist(id, x, y, z, dest, approach1, speeds['bike'], 'bike')[0]
+    else:
+        door1 = Point.objects.get(id=root1).inner_points.get(name__contains="校门")
+        door2 = Point.objects.get(id=root2).inner_points.get(name__contains="校门")
+        [result['dist'], time] = find_path_dist(id, x, y, z, door1, speeds['walk'], 'walk')
+        result['dist'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
+        result['dist'] += find_path_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
+
+        [result['time'], time] = find_path_time(id, x, y, z, door1, speeds['walk'], 'walk')
+        result['time'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
+        result['time'] += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
+
+        [result['transportation'], time] = find_path_time(id, x, y, z, door1, speeds['bike'], 'bike')
+        result['transportation'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
+        result['transportation'] += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['bike'],
+                                                   'bike')
+
+        [result['approach'], time] = find_approach_dist(id, x, y, z, door1, approach1, speeds['bike'], 'bike')
+        result['approach'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
+        result['approach'] += find_approach_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, approach1,
+                                                 speeds['bike'], 'bike')[0]
+
     return JsonResponse({"result": "success", "solution": result})
 
 
 @csrf_exempt
 @require_POST
 def navigation(request):
-    path = str(request.POST['path']).replace(' ', '')
-    count = path.count('path')
-    paths = []
-    if count > 0:
-        last = 0
-        for i in range(3):
-            pos = path.find('path', last)
-            start = path.find('[', pos)
-            end = path.find(']', pos)
-            new_path = path[start + 1:end].split(',')
-            new_path = [Point.objects.get(id=i) for i in new_path]
-            if i == 1:
-                time_start = path.find('time', end) + 4
-                people.bus_time = float(re.search("\d*", path[time_start + 2:]).group(0))
-            paths.append(new_path)
-            last = end
-    else:
-        path = path.split(',')
-        paths.append([Point.objects.get(id=i) for i in path])
-    people.move_model = request.POST['move_model']
-    dis = eucid_distance(people.pos[0], people.pos[1], paths[0][0])
-    if dis:
-        people.direction = np.array([paths[0][0].x - people.pos[0], paths[0][0].y - people.pos[1]]) / dis
-    else:
-        people.direction = np.array([0, 0])
-    people.finish = False
-
-    for road in paths[0][0].edges.all():
-        if is_on(people.pos[0], people.pos[1], road):
-            people.road_type = road.type
-            people.road_jam = road.rate
-            break
-    people.corner_time = dis / (speeds[people.move_model][people.road_type] * people.road_jam)
-    people.path = paths
-    people.path.reverse()
-    for i in range(len(people.path)):
-        people.path[i].reverse()
-    people.last_ask = timezone.now()
-    people.log.append(
-        timezone.now().__format__('%Y-%m-%d %H:%M:%S') +
-        " from {} in campus {} to {}{} in campus {}".format(tuple(people.pos), people.campus, paths[-1][-1].name,
-                                                            (paths[-1][-1].x, paths[-1][-1].y), paths[-1][-1].campus))
+    # path = request.POST['path'].replace(' ', '')
+    # paths = []
+    # start = 0
+    # s = ''
+    # for char in path:
+    #     if char == '{':
+    #         start = 1
+    #         s = ''
+    #     elif char == '}':
+    #         start = 0
+    #         items = s.split(',')
+    #         segment = {}
+    #         for item in items:
+    #             [key, value] = item.split(':')
+    #             key = key.split('\'')
+    #             if key in ['type', 'id']:
+    #                 value = int(value)
+    #             elif key in ['dist', 'time']:
+    #                 value = float(value)
+    #             elif key != 'move_model':
+    #                 ls = []
+    #                 value = value[1:-2].replace('(', '').replace(')', '').split(',')
+    #                 point = []
+    #                 for item in value:
+    #                     point.append(item)
+    #                     if len(point) == 3:
+    #                         ls.append(tuple(point))
+    #                         point = []
+    #                 ls.reverse()
+    #                 value = ls
+    #             segment[key] = value
+    #         paths.append(segment)
+    #     elif start == 1:
+    #         s += char
+    # paths.reverse()
+    # people.path = paths
+    # next = people.path[-1]['path'].pop()
+    # people.pos = np.array(paths[-1]['path'][-1])
+    # people.move_model = paths[-1]['move_model']
+    # people.root = Point.objects.get(id=paths[-1]['id'])
+    # dis = eucid_distance(people.pos[0], people.pos[1], people.pos[2], next)
+    # if dis == 0:
+    #     dis = 1
+    # people.direction = np.array(next[0] - people.pos[0], next[1] - people.pos[1], next[2] - people.pos[2]) / dis
+    # next = Point.objects.get(id=people.root).inner_points.get(x=next[0], y=next[1], z=next[2])
+    # for road in next.edge.all():
+    #     if is_on(people.pos[0], people.pos[1], people.pos[2], road):
+    #         people.road_type = road.type
+    #         people.road_jam = road.rate
+    #         break
+    # people.corner_time = dis / (speeds[people.move_model][people.road_type] * people.road_jam)
+    # people.last_ask = timezone.now()
+    # dest = Point.objects.get(id=paths[0]['id']).inner_points.get(id=paths[0]['path'][0])
+    # people.log.append(
+    #     timezone.now().__format__('%Y-%m-%d %H:%M:%S') +
+    #     " from {} in {} to {}{} in  {}".format(tuple(people.pos), people.root.name, dest.name,
+    #                                            (dest.x, dest.y, dest.z), dest.belong.name))
+    people.log.append(request.POST['log'])
     return JsonResponse({"result": "success"})
 
 
 @csrf_exempt
 @require_POST
 def finish(request):
-    if len(people.path) > 0:
-        people.pos = np.array([people.path[-1][0].x, people.path[-1][0].y])
+    if len(people.path) > 1:
+        people.path.pop()
+        people.pos = np.array(people.path[-1]['path'][-1])
+        people.path[-1]['path'].pop()
+        people.corner_time = 0
+    elif len(people.path) == 1:
+        people.pos = np.array(people.path[0]['path'][0])
         people.path.pop()
         people.corner_time = 0
-        if len(people.path) == 0:
-            people.finish = 1
     return JsonResponse({"result": "success"})
 
 
@@ -232,12 +215,12 @@ def log(request):
 @csrf_exempt
 @require_POST
 def around(request):
-    points = list(people.campus.points.filter(name__regex='^[\S\s]+'))
-    points.sort(key=lambda item: eucid_distance(people.pos[0], people.pos[1], item))
+    points = list(people.root.inner_points.filter(name__regex='^[\S\s]+'))
+    points.sort(key=lambda item: eucid_distance(people.pos[0], people.pos[1], people.pos[2], item))
     near_points = points[:5]
     points = []
     for point in near_points:
-        points.append({'pid': point.id, 'pos': (point.x, point.y), 'name': point.name, 'url': point.img})
+        points.append({'pid': point.id, 'pos': (point.x, point.y, point.z), 'name': point.name, 'url': point.img})
     return JsonResponse({'result': "success", "points": points})
 
 
@@ -247,8 +230,9 @@ def random_road(t):
     if t == 0:
         t = n
     global now
-    for i in range(now, min(n + 1, now + t)):
-        item = Road.objects.get(id=i)
+    global road_list
+    road_list = Road.objects.all()[now:min(n + 1, now + t)]
+    for item in road_list:
         item.rate = random.random()
         item.save()
     now += t
@@ -256,103 +240,130 @@ def random_road(t):
         now = 1
 
 
-def move(t):
-    if people.finish:
-        return None
-    while people.corner_time <= t:
-        point_from = people.path[-1].pop()
-
-        if len(people.path[-1]):
-            if point_from.campus == people.path[-1][-1].campus:
-                road = point_from.campus.roads.filter(points=point_from).filter(points=people.path[-1][-1])[0]
-                people.road_type = road.type
-                people.direction = np.array(
-                    [people.path[-1][-1].x - point_from.x, people.path[-1][-1].y - point_from.y]) / road.long
-                t -= people.corner_time
-                people.corner_time = road.long / (speeds[people.move_model][road.type] * road.rate)
-                people.road_jam = road.rate
-                people.pos = np.array((point_from.x, point_from.y))
-            else:
-                people.corner_time = people.bus_time
-        else:
-            t -= people.corner_time
-            people.pos = np.array([point_from.x, point_from.y])
-            people.path.pop()
-            people.direction = np.array([0, 0])
-            if len(people.path) == 0:
-                people.finish = 1
-                t = 0
-    people.pos += people.direction * t * speeds[people.move_model][people.road_type] * people.road_jam
-    people.corner_time -= t
+# def move(t):
+#     if people.finish:
+#         return None
+#     while people.corner_time <= t:
+#         last_pos = people.path[-1]['path'].pop()
+#         point_from = Point.objects.get(x=last_pos[0], y=last_pos[1], z=last_pos[2])
+#         if len(people.path[-1]['path']):
+#             next_pos = people.path[-1]['path'][-1]
+#             point_to = Point.objects.get(x=next_pos[0], y=next_pos[1], z=next_pos[2])
+#             if point_from.belong == point_to.belong:
+#                 road = point_from.edge.filter(points=point_to)[0]
+#                 people.road_type = road.type
+#                 people.direction = np.array(
+#                     [point_to.x - point_from.x, point_to.y - point_from.y, point_to.z - point_from.z]) / road.long
+#                 t -= people.corner_time
+#                 #TODO 改到这，不确定需不需要move
+#                 people.corner_time = road.long / (speeds[people.move_model][road.type] * road.rate)
+#                 people.road_jam = road.rate
+#                 people.pos = np.array((point_from.x, point_from.y, point_from.z))
+#             else:
+#                 people.corner_time = people.path[-1]['time']
+#                 people.direction = np.array(0, 0, 0)
+#         else:
+#             people
+#             t -= people.corner_time
+#             people.pos = np.array([point_from.x, point_from.y])
+#             people.path.pop()
+#             people.direction = np.array([0, 0])
+#         if len(people.path) == 0:
+#             people.finish = 1
+#             t = 0
+#     people.pos += people.direction * t * speeds[people.move_model][people.road_type] * people.road_jam
+#     people.corner_time -= t
 
 
 def import_data(file):
     import os
-    if len(Campus.objects.filter(campus=file)) == 0:
-        campus = Campus.objects.create(campus=file)
-    else:
-        return
-    pid = open(os.path.join(file, 'x_y_id.txt'), encoding='utf-8')
+    pid = open(os.path.join(file, 'x_y_id_1.txt'), encoding='utf-8')
     lines = pid.readlines()
+    campus = Point.objects.get(name=file)
     for line in lines:
         point = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
-        item = Point.objects.create(x=float(point[0]), y=float(point[1]), campus=campus)
-        if len(point) == 4:
+        item = Point.objects.create(x=float(point[0]), y=float(point[1]), belong=campus)
+        if len(point) > 3:
             item.name = point[3]
             item.save()
     pid.close()
 
-    pid = open(os.path.join(file, 'x1_y1_x2_y2_dist_line1_line2.txt'), encoding='utf-8')
+    pid = open(os.path.join(file, 'x1_y1_x2_y2_dist_line1_line2_1.txt'), encoding='utf-8')
     lines = pid.readlines()
     for line in lines:
         road_info = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
-        road = Road.objects.create(long=float(road_info[4]), type=int(road_info[7]), campus=campus,
+        road = Road.objects.create(long=float(road_info[4]), type=int(road_info[7]), belong=campus,
                                    rate=random.random())
         point1 = Point.objects.get(id=road_info[5])
         point2 = Point.objects.get(id=road_info[6])
-        point1.edges.add(road)
-        point2.edges.add(road)
+        road.points.add(point1)
+        road.points.add(point2)
     pid.close()
 
-    pid = open(os.path.join(file, 'line_num_LineNumOfDot.txt'), encoding='utf-8')
+
+def import_architecture(path):
+    pid = open(os.path.join('architecture', 'zip', path, "buidingId_x_y_z_id_flag_phy_logi1_logi2.txt"),
+               encoding="utf-8")
+    lines = pid.readlines()
+    i = 0
+    for line in lines:
+        info = line.replace('\'', '').replace(' ', '').replace('[', '').replace(']', '').split(',')
+        architecture = Point.objects.get(id=int(info[0]))
+        start = architecture.inner_points.all()[0].id
+        point = Point.objects.get(id=start + i)
+        i+=1
+        flag = int(info[5])
+        if flag == 1:
+            door = int(info[6])
+            road = Road.objects.create(long=1e-5, belong_id=info[0])
+            road.points.add(point)
+            road.points.add(Point.objects.get(id=door))
+        elif flag == 3:
+            point.name = info[6] + "_" + info[7] + "_" + info[8]
+            point.save()
+
+    pid.close()
+    pid = open(os.path.join('architecture', 'zip', path, "buildingId_id1_id2_dist.txt"), encoding="utf-8")
     lines = pid.readlines()
     for line in lines:
-        info = [int(i) for i in line.rstrip('\n').split(' ')]
-        pid = info.pop(0)
-        m = info.pop(0)
-        architecture = Point.objects.get(id=pid)
-        if m:
-            for door_id in info:
-                door = Point.objects.get(id=door_id)
-                door.belong = architecture
-                door.save()
-        else:
-            architecture.belong = architecture
-            architecture.save()
+        info = line.replace('\'', '').replace(' ', '').replace('[', '').replace(']', '').split(',')
+        architecture = Point.objects.get(id=int(info[0]))
+        start = architecture.inner_points.all()[0].id
+        point1 = architecture.inner_points.get(id=int(info[1]) + start - 1)
+        point2 = architecture.inner_points.get(id=int(info[2]) + start - 1)
+        road = Road.objects.create(long=float(info[3]), belong_id=info[0])
+
+        road.points.add(point1)
+        road.points.add(point2)
     pid.close()
 
 
 class Move_point:
-    def __init__(self, x, y):
+    def __init__(self, x, y, z):
         self.direction = np.array((0, 0))
-        self.pos = np.array((x, y))
+        self.pos = np.array((x, y, z))
+        self.root = Point.objects.get(id=1)
         self.path = []
         self.road_type = 0
         self.move_model = 'walk'
         self.corner_time = 1e9
         self.log = []
-        self.finish = False
         self.last_ask = timezone.now()
         self.road_jam = 1
-        self.campus = Campus.objects.get(campus='沙河')
-        self.bus_time = 0
 
 
-# import_data("沙河")
-# import_data("西土城")
-floyd(0, Campus.objects.get(id=1))
-floyd(Campus.objects.get(id=1).points.count(), Campus.objects.get(id=2))
-people = Move_point(0, 130)
+if Point.objects.count() == 0:
+    Point.objects.create(name="沙河")
+    Point.objects.create(name="西土城")
+    import_data("沙河")
+    import_data("西土城")
+    import_architecture("final")
+    import_architecture("楼内1")
+    import_architecture("楼内2")
+    import_architecture("楼内3")
+
+floyd()
+people = Move_point(0, 130, 0)
 walk_speed = [5, 5]
 bike_speed = [5, 12]
 speeds = {'walk': walk_speed, 'bike': bike_speed}
@@ -373,5 +384,4 @@ def import_picture():
             item.img = 'http://127.0.0.1:8000/image/{}'.format(file_name)
             item.save()
 
-
-import_picture()
+# import_picture()

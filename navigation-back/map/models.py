@@ -1,22 +1,18 @@
 from django.db import models
 
 
-class Campus(models.Model):
-    campus = models.CharField(max_length=20)
+class Point(models.Model):
+    x = models.FloatField(default=0)
+    y = models.FloatField(default=0)
+    z = models.IntegerField(default=0)
+    name = models.CharField(max_length=20)
+    img = models.URLField(blank=True)
+    belong = models.ForeignKey('self', on_delete=models.CASCADE, related_name='inner_points', blank=True, null=True)
 
 
 class Road(models.Model):
     rate = models.FloatField(default=1)
     long = models.FloatField()
-    type = models.IntegerField(default=0)
-    campus = models.ForeignKey(Campus, on_delete=models.CASCADE, related_name='roads')
-
-
-class Point(models.Model):
-    x = models.FloatField()
-    y = models.FloatField()
-    edges = models.ManyToManyField(Road, related_name='points')
-    img = models.URLField(blank=True)
-    name = models.CharField(blank=True, max_length=100)
-    belong = models.ForeignKey('self', on_delete=models.CASCADE, related_name='doors', blank=True, null=True)
-    campus = models.ForeignKey(Campus, on_delete=models.CASCADE, related_name='points')
+    type = models.IntegerField(default=0)  # 是否为自行车道
+    points = models.ManyToManyField(Point, related_name='edges')
+    belong = models.ForeignKey(Point, on_delete=models.CASCADE, related_name='inner_roads', null=True)
