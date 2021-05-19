@@ -95,7 +95,7 @@ def floyd():
     dist = [[]]
     default = [1e10] * n
     for item in Point.objects.all():
-        if len(item.name) > 0:
+        if len(item.name) > 0 and item.edges.count() > 0:
             dist.append(dijkstra(item))
         else:
             dist.append(default)
