@@ -120,7 +120,7 @@ def search_path(request):
         [result['transportation'], time] = find_path_time(pid, x, y, z, door1, speeds['bike'], 'bike')
         result['transportation'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
         result['transportation'] += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['bike'],
-                                                   'bike')
+                                                   'bike')[0]
         cost_time.append((timezone.now() - last).microseconds)
         last = timezone.now()
 
