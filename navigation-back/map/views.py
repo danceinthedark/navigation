@@ -340,11 +340,10 @@ if Point.objects.count() == 0:
     Point.objects.create(name="西土城")
     import_data("沙河")
     import_data("西土城")
-    import_architecture(5)
-    import_architecture(6)
+    for i in range(1, 8):
+        import_architecture(i)
     import_architecture(7)
-
-floyd()
+init()
 people = Move_point(0, 130, 0)
 walk_speed = [5, 5]
 bike_speed = [5, 12]
@@ -365,5 +364,6 @@ def import_picture():
             item = Point.objects.get(id=pid)
             item.img = 'http://127.0.0.1:8000/image/{}'.format(file_name)
             item.save()
+
 
 # import_picture()
