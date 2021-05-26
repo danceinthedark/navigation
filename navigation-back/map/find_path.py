@@ -57,8 +57,8 @@ def eucid_time(x, y, z, point, speeds):
     return 0
 
 
-# start_point，end_point均为点id
-def dijkstra(start_point, end_point):
+# start_point
+def dijkstra(start_point):
     n = Point.objects.count()
     d = [1e10] * (n + 1)
     visit = [0] * (n + 1)
@@ -68,13 +68,13 @@ def dijkstra(start_point, end_point):
         for point in range(1, n + 1):
             if visit[point] == 0 and d[nearset_point] > d[point]:
                 nearset_point = point
-        if nearset_point == 0 or end_point == nearset_point:
+        if nearset_point == 0:
             break
         for item in f[nearset_point]:
             if d[item['x']] > d[nearset_point] + item['long']:
                 d[item['x']] = d[nearset_point] + item['long']
         visit[nearset_point] = 1
-    return d[end_point]
+    return d
 
 
 def init():
@@ -260,9 +260,6 @@ def find_path_time(root, start_x, start_y, start_z, dest, speeds, move_model):
     return [shortest_path, shortest_time]
 
 
-def cal(x, y, z, approach_point, dest):
-    return eucid_distance(x, y, z, approach_point) + dijkstra(approach_point, dest)
-
 
 def floyd_dp(root, start_x, start_y, start_z, dest, approach, speeds, move_model):
     nearer_points = find_nearer_point(root, start_x, start_y, start_z)
@@ -270,13 +267,13 @@ def floyd_dp(root, start_x, start_y, start_z, dest, approach, speeds, move_model
     n = len(approach)
     f = [[1e9 if i != j else 0 for i in range(n)] for j in range(n)]
     g = [[1e9 for i in range(1 << n)] for j in range(n)]
-    for point in nearer_points:
-        for point_id in range(n):
-            g[point_id][1 << point_id] = min(g[point_id][1 << point_id],
-                                             cal(start_x, start_y, start_z, point, approach[point_id]))
+
     for i in range(n):
+        d = dijkstra(approach[i])
+        for point in nearer_points:
+            g[i][1 << i] = min(g[i][1 << i], eucid_distance(start_x, start_y, start_z, point) + d[point])
         for j in range(n):
-            f[i][j] = dijkstra(approach[i], approach[j])
+            f[i][j] = d[approach[j]]
 
     last = [[-1 for i in range(1 << n)] for j in range(n)]
     for j in range(1 << n):
