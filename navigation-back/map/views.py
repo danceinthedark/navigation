@@ -284,44 +284,41 @@ def import_data(file):
     pid.close()
 
 
-def import_architecture(path):
-    pid = open(os.path.join('architecture', 'zip', path, "buidingId_x_y_z_id_flag_phy_logi1_logi2.txt"),
-               encoding="utf-8")
+def import_architecture(id):
+    pid = open(os.path.join('architecture', '楼内', "dot_f{}.txt".format(id)), encoding="utf-8")
     lines = pid.readlines()
-    i = 0
+    for line in lines:
+        info = line.replace('\'', '').replace(' ', '').replace('[', '').replace(']', '').split(',')
+        point = Point.objects.create(x=info[1], y=info[2], z=info[3], belong_id=info[0])
+        flag = int(info[5])
+        if flag == 1:
+            door = Point.objects.get(id=int(info[6]))
+            road = Road.objects.create(long=1e-5, belong_id=info[0])
+            road.points.add(point)
+            road.points.add(door)
+            door.name = "门"
+            door.save()
+        elif flag == 3:
+            point.name = info[6] + "_" + info[7] + "_" + info[8]
+            point.save()
+
+    pid.close()
+    pid = open(os.path.join('architecture', '楼内', "draw_f{}.txt".format(id)), encoding="utf-8")
+    lines = pid.readlines()
     for line in lines:
         info = line.replace('\'', '').replace(' ', '').replace('[', '').replace(']', '').split(',')
         architecture = Point.objects.get(id=int(info[0]))
         start = architecture.inner_points.all()[0].id
-        point = Point.objects.get(id=start + i)
-        i += 1
-        flag = int(info[5])
-        if flag == 1:
-            door = int(info[6])
-            # road = Road.objects.create(long=1e-5, belong_id=info[0])
-            # road.points.add(point)
-            # road.points.add()
-            door = Point.objects.get(id=door)
-            door.name = "门"
-            door.save()
-        # elif flag == 3:
-        #     point.name = info[6] + "_" + info[7] + "_" + info[8]
-        #     point.save()
+        point1 = architecture.inner_points.get(id=int(info[1]) + start - 1)
+        point2 = architecture.inner_points.get(id=int(info[2]) + start - 1)
+        info[3] = float(info[3])
+        if info[3] == 0:
+            info[3] = 1e-5
+        road = Road.objects.create(long=info[3], belong_id=info[0])
 
-    # pid.close()
-    # pid = open(os.path.join('architecture', 'zip', path, "buildingId_id1_id2_dist.txt"), encoding="utf-8")
-    # lines = pid.readlines()
-    # for line in lines:
-    #     info = line.replace('\'', '').replace(' ', '').replace('[', '').replace(']', '').split(',')
-    #     architecture = Point.objects.get(id=int(info[0]))
-    #     start = architecture.inner_points.all()[0].id
-    #     point1 = architecture.inner_points.get(id=int(info[1]) + start - 1)
-    #     point2 = architecture.inner_points.get(id=int(info[2]) + start - 1)
-    #     road = Road.objects.create(long=float(info[3]), belong_id=info[0])
-    #
-    #     road.points.add(point1)
-    #     road.points.add(point2)
-    # pid.close()
+        road.points.add(point1)
+        road.points.add(point2)
+    pid.close()
 
 
 class Move_point:
@@ -343,10 +340,10 @@ if Point.objects.count() == 0:
     Point.objects.create(name="西土城")
     import_data("沙河")
     import_data("西土城")
-    import_architecture("final")
-    import_architecture("楼内1")
-    import_architecture("楼内2")
-    import_architecture("楼内3")
+    import_architecture(5)
+    import_architecture(6)
+    import_architecture(7)
+
 floyd()
 people = Move_point(0, 130, 0)
 walk_speed = [5, 5]

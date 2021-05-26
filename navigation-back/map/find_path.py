@@ -89,6 +89,8 @@ def floyd():
         points.append({"id": point.id, "x": point.x, "y": point.y, "z": point.z,
                        "belong": 0 if point.id < 3 else point.belong.id})
     for road in Road.objects.all():
+        if road.id==1291:
+            t=1
         [p1, p2] = road.points.all()
         f[p1.id].append({"x": p2.id, "long": road.long, "rate": road.rate, "type": road.type})
         f[p2.id].append({"x": p1.id, "long": road.long, "rate": road.rate, "type": road.type})
@@ -138,17 +140,18 @@ def find_path_dist(root, start_x, start_y, start_z, dest, speeds, move_model):
     total_time = 0
     time = [eucid_time(start_x, start_y, start_z, nearest_point, speeds)]
     d = eucid_distance(start_x, start_y, start_z, nearest_point)
-    path.append((start_x, start_y, start_z))
+    path.append((start_x, start_y))
     x = nearest_point
-    path.append((points[x]['x'], points[x]['y'], points[x]['z']))
+    path.append((points[x]['x'], points[x]['y']))
     result = []
     while x != dest:
         for edge in f[x]:
             y = edge['x']
             if abs(dist[dest][x] - (edge['long'] + dist[dest][y])) < 1e-7:
-                if points[x]['belong'] != points[y]['belong']:
-                    result.append({"type": 1, "dist": d, "total_time": sum(time), "time": time, "path": path,
-                                   "move_model": move_model,"id": points[x]['belong']})
+                if points[x]['belong'] != points[y]['belong'] or points[x]['z'] != points[y]['z']:
+                    result.append(
+                        {"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": points[x]['z'],
+                         "path": path, "move_model": move_model, "id": points[x]['belong']})
                     total_time += sum(time)
                     d = 0
                     time = []
@@ -158,9 +161,9 @@ def find_path_dist(root, start_x, start_y, start_z, dest, speeds, move_model):
                     d += edge['long']
                 x = y
                 break
-        path.append((points[x]['x'], points[x]['y'], points[x]['z']))
-    result.append({"type": 1, "dist": d, "total_time": sum(time), "time": time, "path": path,
-                   "move_model": move_model,"id": points[x]['belong']})
+        path.append((points[x]['x'], points[x]['y']))
+    result.append({"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": points[x]['z'],
+                   "path": path, "move_model": move_model, "id": points[x]['belong']})
     total_time += sum(time)
     return [result, total_time]
 
@@ -197,25 +200,25 @@ def dijkstra_time(start_x, start_y, start_z, start_point, dest, speeds, move_mod
     d = eucid_distance(start_x, start_y, start_z, path[0])
     time = [eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
     result = []
-    path1 = [(start_x, start_y, start_z), (start_point['x'], start_point['y'], start_point['z'])]
+    path1 = [(start_x, start_y), (start_point['x'], start_point['y'])]
     for i in range(len(path) - 1):
         s = points[path[i]]
         t = points[path[i + 1]]
-        if s['belong'] != t['belong']:
+        if s['belong'] != t['belong'] or s['z'] != t['z']:
             result.append(
-                {"type": 1, "dist": d, "total_time": sum(time), "time": time, "path": path1,
-                 "move_model": move_model,"id": s['belong']})
+                {"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": s['z'],
+                 "path": path1, "move_model": move_model, "id": s['belong']})
             time = []
             path1 = []
             d = 0
         else:
             d += eucid_distance(s['x'], s['y'], s['z'], path[i + 1])
             time.append(time_consuming[t['id']] - time_consuming[s['id']])
-        path1.append((t['x'], t['y'], t['z']))
+        path1.append((t['x'], t['y']))
 
     result.append(
-        {"type": 1, "dist": d, "total_time": sum(time), "time": time, "path": path1,
-         "move_model": move_model,"id": points[path[-1]]['belong']})
+        {"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": t['z'],
+         "path": path1, "move_model": move_model, "id": points[path[-1]]['belong']})
     return [result, time_consuming[dest] + eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
 
 
