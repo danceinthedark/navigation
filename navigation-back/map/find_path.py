@@ -121,7 +121,7 @@ def find_nearer_point(root, start_x, start_y, start_z):
     nearer_points = []
     n = Point.objects.count() + 1
     for point0 in points:
-        if point0 != 0 and eucid_distance(start_x, start_y, start_z, point0['id']) < 1e-7:
+        if point0 != 0 and point0['belong']==root.id and eucid_distance(start_x, start_y, start_z, point0['id']) < 1e-7:
             return [point0['id']]
     for point0 in range(1, n):
         if points[point0]['belong'] == root.id:
@@ -202,7 +202,7 @@ def find_path_dist(root, start_x, start_y, start_z, dest, speeds, move_model):
     shortest_dist = 1e9
     global all
     all = root.inner_points.all() | dest.belong.inner_points.all()
-    if root.id > 2:
+    if root.id > 2  and root != dest.belong:
         all |= root.belong.inner_points.all()
     all = [i.id for i in all]
     for point in nearer_points:
@@ -274,7 +274,7 @@ def find_path_time(root, start_x, start_y, start_z, dest, speeds, move_model):
     shortest_time = 1e9
     global all
     all = root.inner_points.all() | dest.belong.inner_points.all()
-    if root.id > 2:
+    if root.id > 2 and root != dest.belong:
         all |= root.belong.inner_points.all()
     all = [i.id for i in all]
     for point in nearer_points:

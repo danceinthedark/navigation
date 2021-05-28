@@ -51,68 +51,71 @@ def choose_bus(start, end, time):
 @require_POST
 def search_path(request):
     dest = request.POST['dest']
-    dest = Point.objects.get(id=dest)
-    x = float(request.POST['x'])
-    y = float(request.POST['y'])
-    z = float(request.POST['z'])
-    pid = int(request.POST['id'])
-    approach = [int(i) for i in request.POST['approach'].split(',')]
+    try:
+        dest = Point.objects.get(name__contains=dest)
+        x = float(request.POST['x'])
+        y = float(request.POST['y'])
+        z = float(request.POST['z'])
+        pid = int(request.POST['id'])
+        model = int(request.POST['model'])
+        approach = []
+        if model == 3:
+            approach = [Point.objects.get(name__contains=s) for s in request.POST['approach'].split(',')]
 
-    result = {}
-    root1 = pid if pid < 3 else Point.objects.get(id=pid).belong.i
-    root2 = dest.belong.id if dest.belong.id < 3 else Point.objects.get(id=dest.belong.id).belong.id
-    approach1 = []
-    approach2 = []
-    for item in approach:
-        point = Point.objects.get(id=item)
-        root = point.belong.id if point.belong.id < 3 else Point.objects.get(id=point.belong.id).belong.id
-        if root == root1:
-            approach1.append(item)
-        elif root == root2:
-            approach2.append(item)
-    cost_time = []
-    last = timezone.now()
-    if root1 == root2:
-        result['dist'] = find_path_dist(pid, x, y, z, dest, speeds['walk'], 'walk')[0]
-        cost_time.append((timezone.now() - last).microseconds)
+        result = []
+        root1 = pid if pid < 3 else Point.objects.get(id=pid).belong.id
+        root2 = dest.belong.id if dest.belong.id < 3 else Point.objects.get(id=dest.belong.id).belong.id
+        approach1 = []
+        approach2 = []
+        for point in approach:
+            root = point.belong.id if point.belong.id < 3 else Point.objects.get(id=point.belong.id).belong.id
+            if root == root1:
+                approach1.append(point.id)
+            elif root == root2:
+                approach2.append(point.id)
         last = timezone.now()
-        result['time'] = find_path_time(pid, x, y, z, dest, speeds['walk'], 'walk')[0]
-        cost_time.append((timezone.now() - last).microseconds)
-        last = timezone.now()
-        result['transportation'] = find_path_time(pid, x, y, z, dest, speeds['bike'], 'bike')[0]
-        cost_time.append((timezone.now() - last).microseconds)
-        last = timezone.now()
-        result['approach'] = find_approach_dist(pid, x, y, z, dest, approach1, speeds['bike'], 'bike')[0]
-        cost_time.append((timezone.now() - last).microseconds)
-    else:
-        door1 = Point.objects.get(id=root1).inner_points.get(name__contains="校门")
-        door2 = Point.objects.get(id=root2).inner_points.get(name__contains="校门")
-        [result['dist'], time] = find_path_dist(pid, x, y, z, door1, speeds['walk'], 'walk')
-        result['dist'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
-        result['dist'] += find_path_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
-        cost_time.append((timezone.now() - last).microseconds)
-        last = timezone.now()
+        if root1 == root2:
+            if model == 0:
+                result = find_path_dist(pid, x, y, z, dest, speeds['walk'], 'walk')[0]
+                cost_time = (timezone.now() - last).microseconds
+            elif model == 1:
+                result = find_path_time(pid, x, y, z, dest, speeds['walk'], 'walk')[0]
+                cost_time = (timezone.now() - last).microseconds
+            elif model == 2:
+                result = find_path_time(pid, x, y, z, dest, speeds['bike'], 'bike')[0]
+                cost_time = (timezone.now() - last).microseconds
+            else:
+                result = find_approach_dist(pid, x, y, z, dest, approach1, speeds['walk'], 'walk')[0]
+                cost_time = (timezone.now() - last).microseconds
+        else:
+            door1 = Point.objects.get(id=root1).inner_points.get(name__contains="校门")
+            door2 = Point.objects.get(id=root2).inner_points.get(name__contains="校门")
+            if model == 0:
+                [result, time] = find_path_dist(pid, x, y, z, door1, speeds['walk'], 'walk')
+                result += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
+                result += find_path_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
+                cost_time = (timezone.now() - last).microseconds
+            elif model == 1:
+                [result, time] = find_path_time(pid, x, y, z, door1, speeds['walk'], 'walk')
+                result += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
+                result += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
+                cost_time = (timezone.now() - last).microseconds
+            elif model == 2:
+                [result, time] = find_path_time(pid, x, y, z, door1, speeds['bike'], 'bike')
+                result += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
+                result += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['bike'], 'bike')[0]
+                cost_time = (timezone.now() - last).microseconds
+            else:
+                [result, time] = find_approach_dist(pid, x, y, z, door1, approach1, speeds['walk'], 'walk')
+                result += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
+                result += \
+                    find_approach_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, approach1, speeds['walk'],
+                                       'walk')[0]
+                cost_time = (timezone.now() - last).microseconds
 
-        [result['time'], time] = find_path_time(pid, x, y, z, door1, speeds['walk'], 'walk')
-        result['time'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
-        result['time'] += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
-        cost_time.append((timezone.now() - last).microseconds)
-        last = timezone.now()
-
-        [result['transportation'], time] = find_path_time(pid, x, y, z, door1, speeds['bike'], 'bike')
-        result['transportation'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
-        result['transportation'] += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['bike'],
-                                                   'bike')[0]
-        cost_time.append((timezone.now() - last).microseconds)
-        last = timezone.now()
-
-        [result['approach'], time] = find_approach_dist(pid, x, y, z, door1, approach1, speeds['bike'], 'bike')
-        result['approach'] += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
-        result['approach'] += find_approach_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, approach1,
-                                                 speeds['bike'], 'bike')[0]
-        cost_time.append((timezone.now() - last).microseconds)
-
-    return JsonResponse({"result": "success", "cost_time": cost_time, "solution": result})
+        return JsonResponse({"result": "success", "cost_time": cost_time, "solution": result})
+    except:
+        return JsonResponse({"result": "fail"})
 
 
 @csrf_exempt
@@ -255,46 +258,34 @@ def around(request):
 
 def import_data(file):
     import os
-    # pid = open(os.path.join(file, 'x_y_id_1.txt'), encoding='utf-8')
-    # lines = pid.readlines()
-    # campus = Point.objects.get(name=file)
-    # for line in lines:
-    #     point = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
-    #     item = Point.objects.create(x=float(point[0]), y=float(point[1]), belong=campus)
-    #     if len(point) > 3:
-    #         item.name = point[3]
-    #         item.save()
-    # pid.close()
-    #
-    # pid = open(os.path.join(file, 'x1_y1_x2_y2_dist_line1_line2_1.txt'), encoding='utf-8')
-    # lines = pid.readlines()
-    # for line in lines:
-    #     road_info = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
-    #     road = Road.objects.create(long=float(road_info[4]), type=int(road_info[7]), belong=campus,
-    #                                rate=random.random())
-    #     point1 = Point.objects.get(id=road_info[5])
-    #     point2 = Point.objects.get(id=road_info[6])
-    #     road.points.add(point1)
-    #     road.points.add(point2)
-    # pid.close()
+    pid = open(os.path.join(file, 'x_y_id.txt'), encoding='utf-8')
+    lines = pid.readlines()
+    campus = Point.objects.get(name=file)
+    for line in lines:
+        point = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
+        item = Point.objects.create(x=float(point[0]), y=float(point[1]), belong=campus)
+        if len(point) > 3:
+            item.name = point[3]
+            item.save()
+    pid.close()
 
-    pid = open(os.path.join(file, 'line_num_LineNumOfDot.txt'), encoding='utf-8')
+    pid = open(os.path.join(file, 'x1_y1_x2_y2_dist_line1_line2.txt'), encoding='utf-8')
     lines = pid.readlines()
     for line in lines:
-        line = line.split(' ')
-        n = int(line[1])
-        a = Point.objects.get(id=line[0])
-        for i in range(1, n + 1):
-            p = Point.objects.get(id=line[i + 1])
-            p.name = a.name + '门{}'.format(i)
-            p.save()
+        road_info = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
+        road = Road.objects.create(long=float(road_info[4]), type=int(road_info[7]), belong=campus,
+                                   rate=random.random())
+        point1 = Point.objects.get(id=road_info[5])
+        point2 = Point.objects.get(id=road_info[6])
+        road.points.add(point1)
+        road.points.add(point2)
     pid.close()
 
 def import_architecture(id):
-    pid = open(os.path.join('architecture', '楼内', "dot_f{}.txt".format(id)), encoding="utf-8")
+    pid = open(os.path.join('architecture', "dot_f{}.txt".format(id)), encoding="utf-8")
     lines = pid.readlines()
     for line in lines:
-        info = line.replace('\'', '').replace(' ', '').replace('[', '').replace(']', '').split(',')
+        info = line.replace('\'', '').replace(' ', '').replace('[', '').replace(']', '').rstrip('\n').split(',')
         point = Point.objects.create(x=info[1], y=info[2], z=info[3], belong_id=info[0])
         flag = int(info[5])
         if flag == 1:
@@ -302,17 +293,15 @@ def import_architecture(id):
             road = Road.objects.create(long=1e-5, belong_id=info[0])
             road.points.add(point)
             road.points.add(door)
-            door.name = "门"
-            door.save()
         elif flag == 3:
             point.name = info[6] + "_" + info[7] + "_" + info[8]
             point.save()
 
     pid.close()
-    pid = open(os.path.join('architecture', '楼内', "draw_f{}.txt".format(id)), encoding="utf-8")
+    pid = open(os.path.join('architecture', "draw_f{}.txt".format(id)), encoding="utf-8")
     lines = pid.readlines()
     for line in lines:
-        info = line.replace('\'', '').replace(' ', '').replace('[', '').replace(']', '').split(',')
+        info = line.replace('\'', '').replace(' ', '').replace('[', '').replace(']', '').rstrip('\n').split(',')
         architecture = Point.objects.get(id=int(info[0]))
         start = architecture.inner_points.all()[0].id
         point1 = architecture.inner_points.get(id=int(info[1]) + start - 1)
@@ -341,6 +330,16 @@ class Move_point:
         self.road_jam = 1
 
 
+def import_picture():
+    files = os.listdir(settings.IMAGE_DIR)
+    for file_name in files:
+        ids = file_name.replace('.svg', '').split('_')
+        for pid in ids:
+            item = Point.objects.get(id=pid)
+            item.img = 'http://127.0.0.1:8000/image/{}'.format(file_name)
+            item.save()
+
+
 if Point.objects.count() == 0:
     Point.objects.create(name="沙河")
     Point.objects.create(name="西土城")
@@ -348,6 +347,7 @@ if Point.objects.count() == 0:
     import_data("西土城")
     for i in range(1, 8):
         import_architecture(i)
+    import_picture()
 init()
 people = Move_point(0, 130, 0)
 walk_speed = [5, 5]
@@ -359,16 +359,3 @@ schoolbus_table = [2, 4, 7, 9, 10, 12]  # one day is 14minutes，denote 14 hours
 schoolbus_cost = 1
 bus_cost = 2
 start_time = timezone.now()
-
-
-def import_picture():
-    files = os.listdir(settings.IMAGE_DIR)
-    for file_name in files:
-        ids = file_name.replace('.svg', '').split('_')
-        for pid in ids:
-            item = Point.objects.get(id=pid)
-            item.img = 'http://127.0.0.1:8000/image/{}'.format(file_name)
-            item.save()
-
-
-# import_picture()
