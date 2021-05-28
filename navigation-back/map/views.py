@@ -17,29 +17,12 @@ from .models import Road, Point
 @csrf_exempt
 @require_POST
 def give_map(request):
+    random_road()
+    global f
     try:
         root = Point.objects.get(id=request.POST['id'])
-        roads = []
-        for road in root.inner_roads.all():
-            son = []
-            road_info = {}
-            interact = False
-            for point in road.points.all():
-                if point.belong != root:
-                    interact = True
-                son.append(point.x)
-                son.append(point.y)
-            if interact:
-                continue
-            road_info['pos'] = son
-            road_info['rid'] = road.id
-            road_info['jam_rate'] = road.rate
-            roads.append(road_info)
-
-        points = []
-        for point in root.inner_points.all():
-            points.append({'pid': point.id, 'pos': (point.x, point.y), 'url': point.img})
-        return JsonResponse({"result": "success", "roads": roads, "points": points})
+        node, links = obtain_road(root)
+        return JsonResponse({"result": "success", "links": links, "node": node})
     except:
         return JsonResponse({"result": "fail"})
 
@@ -67,7 +50,6 @@ def choose_bus(start, end, time):
 @csrf_exempt
 @require_POST
 def search_path(request):
-    random_road()
     dest = request.POST['dest']
     dest = Point.objects.get(id=dest)
     x = float(request.POST['x'])
@@ -77,7 +59,7 @@ def search_path(request):
     approach = [int(i) for i in request.POST['approach'].split(',')]
 
     result = {}
-    root1 = pid if pid < 3 else Point.objects.get(id=pid).belong.id
+    root1 = pid if pid < 3 else Point.objects.get(id=pid).belong.i
     root2 = dest.belong.id if dest.belong.id < 3 else Point.objects.get(id=dest.belong.id).belong.id
     approach1 = []
     approach2 = []
@@ -212,12 +194,25 @@ def log(request):
 @csrf_exempt
 @require_POST
 def around(request):
+    x = float(request.POST['x'])
+    y = float(request.POST['y'])
+    z = 0
+    root = request.POST['id']
+    root = Point.objects.get(id=root)
     points = list(people.root.inner_points.filter(name__regex='^[\S\s]+'))
-    points.sort(key=lambda item: eucid_distance(people.pos[0], people.pos[1], people.pos[2], item))
+
+    nearer_points = find_nearer_point(root, x, y, z)
+    overall = eucid_distance(x, y, z, nearer_points[0])
+    d = [item + overall for item in dijkstra(nearer_points[0])]
+    if len(nearer_points) > 1:
+        overall = eucid_distance(x, y, z, nearer_points[1])
+        g = dijkstra(nearer_points[1])
+        d = [min(d[i], g[i] + overall) for i in range(len(d))]
+    points.sort(key=lambda item: d[item.id])
     near_points = points[:5]
     points = []
     for point in near_points:
-        points.append({'pid': point.id, 'pos': (point.x, point.y, point.z), 'name': point.name, 'url': point.img})
+        points.append({'id': point.id, 'dist': d[point.id]})
     return JsonResponse({'result': "success", "points": points})
 
 
@@ -260,29 +255,40 @@ def around(request):
 
 def import_data(file):
     import os
-    pid = open(os.path.join(file, 'x_y_id_1.txt'), encoding='utf-8')
-    lines = pid.readlines()
-    campus = Point.objects.get(name=file)
-    for line in lines:
-        point = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
-        item = Point.objects.create(x=float(point[0]), y=float(point[1]), belong=campus)
-        if len(point) > 3:
-            item.name = point[3]
-            item.save()
-    pid.close()
+    # pid = open(os.path.join(file, 'x_y_id_1.txt'), encoding='utf-8')
+    # lines = pid.readlines()
+    # campus = Point.objects.get(name=file)
+    # for line in lines:
+    #     point = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
+    #     item = Point.objects.create(x=float(point[0]), y=float(point[1]), belong=campus)
+    #     if len(point) > 3:
+    #         item.name = point[3]
+    #         item.save()
+    # pid.close()
+    #
+    # pid = open(os.path.join(file, 'x1_y1_x2_y2_dist_line1_line2_1.txt'), encoding='utf-8')
+    # lines = pid.readlines()
+    # for line in lines:
+    #     road_info = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
+    #     road = Road.objects.create(long=float(road_info[4]), type=int(road_info[7]), belong=campus,
+    #                                rate=random.random())
+    #     point1 = Point.objects.get(id=road_info[5])
+    #     point2 = Point.objects.get(id=road_info[6])
+    #     road.points.add(point1)
+    #     road.points.add(point2)
+    # pid.close()
 
-    pid = open(os.path.join(file, 'x1_y1_x2_y2_dist_line1_line2_1.txt'), encoding='utf-8')
+    pid = open(os.path.join(file, 'line_num_LineNumOfDot.txt'), encoding='utf-8')
     lines = pid.readlines()
     for line in lines:
-        road_info = line.replace('\'', '').replace('[', '').replace(']', '').replace(' ', '').rstrip('\n').split(',')
-        road = Road.objects.create(long=float(road_info[4]), type=int(road_info[7]), belong=campus,
-                                   rate=random.random())
-        point1 = Point.objects.get(id=road_info[5])
-        point2 = Point.objects.get(id=road_info[6])
-        road.points.add(point1)
-        road.points.add(point2)
+        line = line.split(' ')
+        n = int(line[1])
+        a = Point.objects.get(id=line[0])
+        for i in range(1, n + 1):
+            p = Point.objects.get(id=line[i + 1])
+            p.name = a.name + '门{}'.format(i)
+            p.save()
     pid.close()
-
 
 def import_architecture(id):
     pid = open(os.path.join('architecture', '楼内', "dot_f{}.txt".format(id)), encoding="utf-8")
@@ -342,7 +348,6 @@ if Point.objects.count() == 0:
     import_data("西土城")
     for i in range(1, 8):
         import_architecture(i)
-    import_architecture(7)
 init()
 people = Move_point(0, 130, 0)
 walk_speed = [5, 5]

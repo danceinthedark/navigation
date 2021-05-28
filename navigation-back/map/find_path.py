@@ -5,6 +5,23 @@ from .models import Point, Road
 
 change_list = []
 
+def obtain_road(root):
+    nodes = []
+    points = []
+    for point in root.inner_points.all():
+        if len(f[point.id]) > 0:
+            nodes.append({'name': point.id, 'value': [point.x, point.y]})
+            points.append(point.id)
+    n = Point.objects.count() + 1
+    node = [0] * n
+    link = []
+    for i in points:
+        node[i] = 1
+    for x in points:
+        for item in f[x]:
+            if node[item['x']] > 0 and item['x'] > x:
+                link.append({"source": x, "target": item['x'], 'value': item['rate']})
+    return nodes, link
 
 def store():
     global change_list
@@ -37,7 +54,13 @@ def is_on(x, y, z, point0, point1):
     point1 = points[point1]
     if point0['z'] != z or point1['z'] != z:
         return 0
-    return abs((y - point0['y']) * (point1['x'] - point0['x']) - (point1['y'] - point0['y']) * (x - point0['x'])) < 1e-5
+    x0 = point0['x'] - x
+    y0 = point0['y'] - y
+    x1 = point1['x'] - x
+    y1 = point1['y'] - y
+    len0 = sqrt(sqr(x0) + sqr(y0))
+    len1 = sqrt(sqr(x1) + sqr(y1))
+    return abs(x0 * x1 + y0 * y1 + len0 * len1) < 1e-5
 
 
 def sqr(x):
@@ -107,6 +130,8 @@ def find_nearer_point(root, start_x, start_y, start_z):
                     nearer_points.append(point0)
                     nearer_points.append(edge['x'])
                     break
+        if len(nearer_points) > 0:
+            break
     return nearer_points
 
 
