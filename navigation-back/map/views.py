@@ -120,65 +120,10 @@ def search_path(request):
 
 @csrf_exempt
 @require_POST
-def navigation(request):
-    # path = request.POST['path'].replace(' ', '')
-    # paths = []
-    # start = 0
-    # s = ''
-    # for char in path:
-    #     if char == '{':
-    #         start = 1
-    #         s = ''
-    #     elif char == '}':
-    #         start = 0
-    #         items = s.split(',')
-    #         segment = {}
-    #         for item in items:
-    #             [key, value] = item.split(':')
-    #             key = key.split('\'')
-    #             if key in ['type', 'id']:
-    #                 value = int(value)
-    #             elif key in ['dist', 'time']:
-    #                 value = float(value)
-    #             elif key != 'move_model':
-    #                 ls = []
-    #                 value = value[1:-2].replace('(', '').replace(')', '').split(',')
-    #                 point = []
-    #                 for item in value:
-    #                     point.append(item)
-    #                     if len(point) == 3:
-    #                         ls.append(tuple(point))
-    #                         point = []
-    #                 ls.reverse()
-    #                 value = ls
-    #             segment[key] = value
-    #         paths.append(segment)
-    #     elif start == 1:
-    #         s += char
-    # paths.reverse()
-    # people.path = paths
-    # next = people.path[-1]['path'].pop()
-    # people.pos = np.array(paths[-1]['path'][-1])
-    # people.move_model = paths[-1]['move_model']
-    # people.root = Point.objects.get(id=paths[-1]['id'])
-    # dis = eucid_distance(people.pos[0], people.pos[1], people.pos[2], next)
-    # if dis == 0:
-    #     dis = 1
-    # people.direction = np.array(next[0] - people.pos[0], next[1] - people.pos[1], next[2] - people.pos[2]) / dis
-    # next = Point.objects.get(id=people.root).inner_points.get(x=next[0], y=next[1], z=next[2])
-    # for road in next.edge.all():
-    #     if is_on(people.pos[0], people.pos[1], people.pos[2], road):
-    #         people.road_type = road.type
-    #         people.road_jam = road.rate
-    #         break
-    # people.corner_time = dis / (speeds[people.move_model][people.road_type] * people.road_jam)
-    # people.last_ask = timezone.now()
-    # dest = Point.objects.get(id=paths[0]['id']).inner_points.get(id=paths[0]['path'][0])
-    # people.log.append(
-    #     timezone.now().__format__('%Y-%m-%d %H:%M:%S') +
-    #     " from {} in {} to {}{} in  {}".format(tuple(people.pos), people.root.name, dest.name,
-    #                                            (dest.x, dest.y, dest.z), dest.belong.name))
-    people.log.append(request.POST['log'])
+def writeLog(request):
+    with open("navigation.log", 'a', encoding='utf-8')as f:
+        express = timezone.now().__format__('%Y-%m-%d %H:%M:%S') + ' ' + request.POST['log'] + '\n'
+        f.writelines(express)
     return JsonResponse({"result": "success"})
 
 
@@ -188,10 +133,13 @@ def finish(request):
     store()
     return JsonResponse({"result": "success"})
 
+
 @csrf_exempt
 @require_POST
 def log(request):
-    return JsonResponse({"result": "success", "log": people.log})
+    with open("navigation.log", encoding='utf-8') as fd:
+        lines = fd.readlines()
+        return JsonResponse({"result": "success", "log": lines})
 
 
 @csrf_exempt
