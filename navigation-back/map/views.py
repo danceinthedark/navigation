@@ -55,7 +55,7 @@ def search_path(request):
         dest = Point.objects.get(name__contains=dest)
         x = float(request.POST['x'])
         y = float(request.POST['y'])
-        z = float(request.POST['z'])
+        z = int(request.POST['z'])
         pid = int(request.POST['id'])
         model = int(request.POST['model'])
         approach = []
@@ -64,11 +64,11 @@ def search_path(request):
 
         result = []
         root1 = pid if pid < 3 else Point.objects.get(id=pid).belong.id
-        root2 = dest.belong.id if dest.belong.id < 3 else Point.objects.get(id=dest.belong.id).belong.id
+        root2 = dest.belong.id if dest.belong.id < 3 else dest.belong.belong.id
         approach1 = []
         approach2 = []
         for point in approach:
-            root = point.belong.id if point.belong.id < 3 else Point.objects.get(id=point.belong.id).belong.id
+            root = point.belong.id if point.belong.id < 3 else point.belong.belong.id
             if root == root1:
                 approach1.append(point.id)
             elif root == root2:
@@ -114,8 +114,8 @@ def search_path(request):
                 cost_time = (timezone.now() - last).microseconds
 
         return JsonResponse({"result": "success", "cost_time": cost_time, "solution": result})
-    except:
-        return JsonResponse({"result": "fail"})
+    except Exception as e:
+        return JsonResponse({"result": str(e)})
 
 
 @csrf_exempt
@@ -167,41 +167,6 @@ def around(request):
     return JsonResponse({'result': "success", "points": points})
 
 
-
-
-# def move(t):
-#     if people.finish:
-#         return None
-#     while people.corner_time <= t:
-#         last_pos = people.path[-1]['path'].pop()
-#         point_from = Point.objects.get(x=last_pos[0], y=last_pos[1], z=last_pos[2])
-#         if len(people.path[-1]['path']):
-#             next_pos = people.path[-1]['path'][-1]
-#             point_to = Point.objects.get(x=next_pos[0], y=next_pos[1], z=next_pos[2])
-#             if point_from.belong == point_to.belong:
-#                 road = point_from.edge.filter(points=point_to)[0]
-#                 people.road_type = road.type
-#                 people.direction = np.array(
-#                     [point_to.x - point_from.x, point_to.y - point_from.y, point_to.z - point_from.z]) / road.long
-#                 t -= people.corner_time
-#                 #TODO 改到这，不确定需不需要move
-#                 people.corner_time = road.long / (speeds[people.move_model][road.type] * road.rate)
-#                 people.road_jam = road.rate
-#                 people.pos = np.array((point_from.x, point_from.y, point_from.z))
-#             else:
-#                 people.corner_time = people.path[-1]['time']
-#                 people.direction = np.array(0, 0, 0)
-#         else:
-#             people
-#             t -= people.corner_time
-#             people.pos = np.array([point_from.x, point_from.y])
-#             people.path.pop()
-#             people.direction = np.array([0, 0])
-#         if len(people.path) == 0:
-#             people.finish = 1
-#             t = 0
-#     people.pos += people.direction * t * speeds[people.move_model][people.road_type] * people.road_jam
-#     people.corner_time -= t
 
 
 def import_data(file):

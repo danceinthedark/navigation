@@ -10,7 +10,7 @@ def obtain_road(root):
     points = []
     for point in root.inner_points.all():
         if len(f[point.id]) > 0:
-            nodes.append({'name': point.id, 'value': [point.x, point.y]})
+            nodes.append({'name': str(point.id), 'value': [point.x, point.y]})
             points.append(point.id)
     n = Point.objects.count() + 1
     node = [0] * n
@@ -20,7 +20,7 @@ def obtain_road(root):
     for x in points:
         for item in f[x]:
             if node[item['x']] > 0 and item['x'] > x:
-                link.append({"source": x, "target": item['x'], 'value': item['rate']})
+                link.append({"source": str(x), "target": str(item['x']), 'value': item['rate']})
     return nodes, link
 
 def store():
@@ -60,7 +60,7 @@ def is_on(x, y, z, point0, point1):
     y1 = point1['y'] - y
     len0 = sqrt(sqr(x0) + sqr(y0))
     len1 = sqrt(sqr(x1) + sqr(y1))
-    return abs(x0 * x1 + y0 * y1 + len0 * len1) < 1e-5
+    return abs(x0 * x1 + y0 * y1 + len0 * len1) < 1e-2 * len0 * len1
 
 
 def sqr(x):
@@ -121,7 +121,8 @@ def find_nearer_point(root, start_x, start_y, start_z):
     nearer_points = []
     n = Point.objects.count() + 1
     for point0 in points:
-        if point0 != 0 and point0['belong']==root.id and eucid_distance(start_x, start_y, start_z, point0['id']) < 1e-7:
+        if point0 != 0 and point0['belong'] == root.id and eucid_distance(start_x, start_y, start_z,
+                                                                          point0['id']) < 1e-2:
             return [point0['id']]
     for point0 in range(1, n):
         if points[point0]['belong'] == root.id:
@@ -171,16 +172,20 @@ def dijkstra_dist(start_x, start_y, start_z, start_point, dest, speeds, move_mod
             path.append(front_point[point])
     path.reverse()
     d = eucid_distance(start_x, start_y, start_z, path[0])
-    time = [eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
     result = []
-    path1 = [(start_x, start_y), (start_point['x'], start_point['y'])]
+    if d > 1e-2:
+        time = [eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
+        path1 = [(start_x, start_y), (start_point['x'], start_point['y'])]
+    else:
+        time = []
+        path1 = [(start_point['x'], start_point['y'])]
     for i in range(len(path) - 1):
         s = points[path[i]]
         t = points[path[i + 1]]
         if s['belong'] != t['belong'] or s['z'] != t['z']:
-            result.append(
-                {"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": s['z'],
-                 "path": path1, "move_model": move_model, "id": s['belong']})
+            if len(path1) > 1:
+                result.append({"type": 1, "dist": d, "total_time": sum(time), "time": time,
+                               "z": s['z'], "path": path1, "move_model": move_model, "id": s['belong']})
             time = []
             path1 = []
             d = 0
@@ -188,10 +193,10 @@ def dijkstra_dist(start_x, start_y, start_z, start_point, dest, speeds, move_mod
             d += dist[t['id']] - dist[s['id']]
             time.append(cost_time[t['id']] - cost_time[s['id']])
         path1.append((t['x'], t['y']))
-
-    result.append(
-        {"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": points[path[-1]]['z'],
-         "path": path1, "move_model": move_model, "id": points[path[-1]]['belong']})
+    if len(path1) > 1:
+        result.append({"type": 1, "dist": d, "total_time": sum(time), "time": time,
+                       "z": points[path[-1]]['z'], "path": path1, "move_model": move_model,
+                       "id": points[path[-1]]['belong']})
     return [result, dist[dest] + eucid_distance(start_x, start_y, start_z, start_point['id'])]
 
 
@@ -242,17 +247,21 @@ def dijkstra_time(start_x, start_y, start_z, start_point, dest, speeds, move_mod
         if point != start_point['id']:
             path.append(front_point[point])
     path.reverse()
-    d = eucid_distance(start_x, start_y, start_z, path[0])
-    time = [eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
     result = []
-    path1 = [(start_x, start_y), (start_point['x'], start_point['y'])]
+    d = eucid_distance(start_x, start_y, start_z, path[0])
+    if d > 1e-2:
+        time = [eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
+        path1 = [(start_x, start_y), (start_point['x'], start_point['y'])]
+    else:
+        time = []
+        path1 = [(start_point['x'], start_point['y'])]
     for i in range(len(path) - 1):
         s = points[path[i]]
         t = points[path[i + 1]]
         if s['belong'] != t['belong'] or s['z'] != t['z']:
-            result.append(
-                {"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": s['z'],
-                 "path": path1, "move_model": move_model, "id": s['belong']})
+            if len(path1) > 1:
+                result.append({"type": 1, "dist": d, "total_time": sum(time), "time": time,
+                               "z": s['z'], "path": path1, "move_model": move_model, "id": s['belong']})
             time = []
             path1 = []
             d = 0
@@ -260,10 +269,9 @@ def dijkstra_time(start_x, start_y, start_z, start_point, dest, speeds, move_mod
             d += eucid_distance(s['x'], s['y'], s['z'], path[i + 1])
             time.append(time_consuming[t['id']] - time_consuming[s['id']])
         path1.append((t['x'], t['y']))
-
-    result.append(
-        {"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": t['z'],
-         "path": path1, "move_model": move_model, "id": points[path[-1]]['belong']})
+    if len(path1) > 1:
+        result.append({"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": points[path[-1]]['z'],
+                       "path": path1, "move_model": move_model, "id": points[path[-1]]['belong']})
     return [result, time_consuming[dest] + eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
 
 
@@ -287,6 +295,7 @@ def find_path_time(root, start_x, start_y, start_z, dest, speeds, move_model):
 
 
 def floyd_dp(root, start_x, start_y, start_z, dest, approach, speeds, move_model):
+    root = Point.objects.get(id=root)
     nearer_points = find_nearer_point(root, start_x, start_y, start_z)
     approach.append(dest)
     n = len(approach)
@@ -331,7 +340,6 @@ def floyd_dp(root, start_x, start_y, start_z, dest, approach, speeds, move_model
 
 
 def find_approach_dist(root, start_x, start_y, start_z, dest, approach, speeds, move_model):
-    root = Point.objects.get(id=root)
     if not len(approach):
         return find_path_dist(root, start_x, start_y, start_z, dest, speeds, move_model)
     else:
