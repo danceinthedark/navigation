@@ -1,6 +1,5 @@
 import os
 
-import numpy as np
 from django.conf import settings
 from django.http import JsonResponse
 from django.utils import timezone
@@ -155,7 +154,7 @@ def around(request):
     z = int(request.POST['z'])
     root = request.POST['id']
     root = Point.objects.get(id=root)
-    points = list(people.root.inner_points.filter(name__regex='^[\S\s]+'))
+    points = list(root.inner_points.filter(z=z).filter(name__regex='^[\S\s]+'))
 
     nearer_points = find_nearer_point(root, x, y, z)
     overall = eucid_distance(x, y, z, nearer_points[0])
@@ -165,10 +164,14 @@ def around(request):
         g = dijkstra(nearer_points[1])
         d = [min(d[i], g[i] + overall) for i in range(len(d))]
     points.sort(key=lambda item: d[item.id])
-    near_points = points[:5]
+    if len(points) < 5:
+        near_points = points
+    else:
+        near_points = points[:5]
     points = []
     for point in near_points:
-        points.append({'name': point.name, 'dist': d[point.id]})
+        s = str(point.name).split('_')[0]
+        points.append({'name': s, 'dist': d[point.id]})
     return JsonResponse({'result': "success", "points": points})
 
 
@@ -261,18 +264,6 @@ def import_architecture(id):
     pid.close()
 
 
-class Move_point:
-    def __init__(self, x, y, z):
-        self.direction = np.array((0, 0))
-        self.pos = np.array((x, y, z))
-        self.root = Point.objects.get(id=1)
-        self.path = []
-        self.road_type = 0
-        self.move_model = 'walk'
-        self.corner_time = 1e9
-        self.log = []
-        self.last_ask = timezone.now()
-        self.road_jam = 1
 
 
 def import_picture():
@@ -294,7 +285,6 @@ if Point.objects.count() == 0:
         import_architecture(i)
     import_picture()
 init()
-people = Move_point(0, 130, 0)
 walk_speed = [5, 5]
 bike_speed = [5, 12]
 speeds = {'walk': walk_speed, 'bike': bike_speed}
