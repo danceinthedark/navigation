@@ -152,7 +152,7 @@ def log(request):
 def around(request):
     x = float(request.POST['x'])
     y = float(request.POST['y'])
-    z = 0
+    z = int(request.POST['z'])
     root = request.POST['id']
     root = Point.objects.get(id=root)
     points = list(people.root.inner_points.filter(name__regex='^[\S\s]+'))
@@ -168,10 +168,37 @@ def around(request):
     near_points = points[:5]
     points = []
     for point in near_points:
-        points.append({'id': point.id, 'dist': d[point.id]})
+        points.append({'name': point.name, 'dist': d[point.id]})
     return JsonResponse({'result': "success", "points": points})
 
 
+@csrf_exempt
+@require_POST
+def canteen(request):
+    x = float(request.POST['x'])
+    y = float(request.POST['y'])
+    z = int(request.POST['z'])
+    root = request.POST['id']
+    root = Point.objects.get(id=root)
+
+    ls = ["西土城教工食堂", "西土城学生食堂", "沙河教工食堂", "沙河学生食堂"]
+    nearer_points = find_nearer_point(root, x, y, z)
+    overall = eucid_distance(x, y, z, nearer_points[0])
+    d = [item + overall for item in dijkstra(nearer_points[0])]
+    if len(nearer_points) > 1:
+        overall = eucid_distance(x, y, z, nearer_points[1])
+        g = dijkstra(nearer_points[1])
+        d = [min(d[i], g[i] + overall) for i in range(len(d))]
+    result = []
+    for name in ls:
+        points = Point.objects.filter(name__contains=name)
+        x = 1e10
+        for point in points:
+            x = min(x, d[point.id])
+        if x == 1e10:
+            x = -1
+        result.append({"name": name, "dist": x})
+    return JsonResponse({'result': "success", "points": result})
 
 
 def import_data(file):
@@ -273,7 +300,7 @@ bike_speed = [5, 12]
 speeds = {'walk': walk_speed, 'bike': bike_speed}
 last_update_road = timezone.now()
 now = 1
-schoolbus_table = [2, 4, 7, 9, 10, 12]  # one day is 14minutes，denote 14 hours
+schoolbus_table = [6, 7, 9, 12, 13, 15, 18, 19]  # one day is 24minutes，denote 24 hours
 schoolbus_cost = 1
 bus_cost = 2
 start_time = timezone.now()

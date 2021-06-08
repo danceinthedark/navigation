@@ -11,4 +11,5 @@ urlpatterns = [
     path('around/', around, name='around'),
     path('finish/', finish, name='finish'),
     path('gettime/', gettime, name='gettime'),
+    path('canteen/', canteen, name='canteen'),
 ]

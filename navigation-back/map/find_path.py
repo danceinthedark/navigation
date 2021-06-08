@@ -134,8 +134,9 @@ def find_nearer_point(root, start_x, start_y, start_z):
     nearer_points = []
     n = Point.objects.count() + 1
     for point0 in points[1:-1]:
-        if point0['belong'] == root.id and eucid_distance(start_x, start_y, start_z, point0['id']) < scale[root.id]:
-                return [point0['id']]
+        if point0['belong'] == root.id and start_z == point0['z'] \
+                and eucid_distance(start_x, start_y, start_z, point0['id']) < scale[root.id]:
+            return [point0['id']]
     for point0 in range(1, n):
         if points[point0]['belong'] == root.id:
             for edge in f[point0]:
@@ -345,7 +346,17 @@ def floyd_dp(root, start_x, start_y, start_z, dest, approach, speeds, move_model
         q ^= 1 << x
         [ans, time] = find_path_dist(zone, point[0], point[1], point[2], Point.objects.get(id=approach[x]), speeds,
                                      move_model)
-        result = ans + result
+        if len(result) == 0:
+            result = ans
+        else:
+            x = ans[-1]
+            result[0]['dist'] += x['dist']
+            result[0]['total_time'] += x['total_time']
+            result[0]['time'] = x['time'] + result[0]['time']
+            x['path'].pop()
+            result[0]['path'] = x['path'] + result[0]['path']
+            ans.pop()
+            result = ans + result
         total_time += time
         x = y
     return [result, total_time]
