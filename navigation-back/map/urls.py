@@ -10,4 +10,5 @@ urlpatterns = [
     path('read-log/', log, name='log'),
     path('around/', around, name='around'),
     path('finish/', finish, name='finish'),
+    path('gettime/', gettime, name='gettime'),
 ]

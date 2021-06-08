@@ -26,12 +26,17 @@ def give_map(request):
     except:
         return JsonResponse({"result": "fail"})
 
-
+@csrf_exempt
+@require_POST
+def gettime(request):
+    time = (timezone.now() - start_time).seconds / 60
+    time -= time // 24 * 24
+    return JsonResponse({"time": time})
 
 
 def choose_bus(start, end, time):
     time = (time + (timezone.now() - start_time).seconds) / 60
-    time -= time // 60 * 60
+    time -= time // 24 * 24
     school_bus = 0
     for launch in schoolbus_table:
         if launch >= time:
