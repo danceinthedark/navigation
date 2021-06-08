@@ -60,7 +60,7 @@ def is_on(x, y, z, point0, point1):
     y1 = point1['y'] - y
     len0 = sqrt(sqr(x0) + sqr(y0))
     len1 = sqrt(sqr(x1) + sqr(y1))
-    return abs(x0 * x1 + y0 * y1 + len0 * len1) < 1e-2 * len0 * len1
+    return (x0 * x1 + y0 * y1) / (len0 * len1) < -0.9
 
 
 def sqr(x):
@@ -103,27 +103,39 @@ def dijkstra(start_point):
 def init():
     global f
     global points
+    global scale
     n = Point.objects.count() + 1
     f = [[] for i in range(n)]
+    mxy = mxx = [-1e9] * n
+    miy = mix = [1e9] * n
+    scale = [0] * n
     points = [0]
     for point in Point.objects.all():
         points.append({"id": point.id, "x": point.x, "y": point.y, "z": point.z,
                        "belong": 0 if point.id < 3 else point.belong.id})
+        if point.id > 2:
+            mxx[point.belong.id] = max(point.x, mxx[point.belong.id])
+            mix[point.belong.id] = min(point.x, mix[point.belong.id])
+            mxy[point.belong.id] = max(point.y, mxy[point.belong.id])
+            miy[point.belong.id] = min(point.y, miy[point.belong.id])
+
+    for i in range(n):
+        if mxx[i] < mix[i]:
+            continue
+        x = (mxx[i] - mix[i]) / 2000
+        y = (mxy[i] - miy[i]) / 2000
+        scale[i] = 2 * sqrt(x * x + y * y)
     for road in Road.objects.all():
         [p1, p2] = road.points.all()
         f[p1.id].append({"x": p2.id, "long": road.long, "rate": road.rate, "type": road.type})
         f[p2.id].append({"x": p1.id, "long": road.long, "rate": road.rate, "type": road.type})
 
-
-
-
 def find_nearer_point(root, start_x, start_y, start_z):
     nearer_points = []
     n = Point.objects.count() + 1
-    for point0 in points:
-        if point0 != 0 and point0['belong'] == root.id and eucid_distance(start_x, start_y, start_z,
-                                                                          point0['id']) < 1e-2:
-            return [point0['id']]
+    for point0 in points[1:-1]:
+        if point0['belong'] == root.id and eucid_distance(start_x, start_y, start_z, point0['id']) < scale[root.id]:
+                return [point0['id']]
     for point0 in range(1, n):
         if points[point0]['belong'] == root.id:
             for edge in f[point0]:
