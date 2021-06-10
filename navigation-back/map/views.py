@@ -73,7 +73,8 @@ def search_path(request):
             random_road()
         approach = []
         if model == 3:
-            approach = [Point.objects.get(name__contains=s) for s in request.POST['approach'].split(',')]
+            if len(request.POST['approach']):
+                approach = [Point.objects.get(name__contains=s) for s in request.POST['approach'].split(',')]
 
         result = []
         root1 = pid if pid < 3 else Point.objects.get(id=pid).belong.id
