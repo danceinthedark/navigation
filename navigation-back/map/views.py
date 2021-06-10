@@ -17,7 +17,6 @@ from .models import Road, Point
 @require_POST
 def give_map(request):
     # 获取道路拥挤度
-    random_road()
     global f
     try:
         root = Point.objects.get(id=request.POST['id'])
@@ -67,6 +66,7 @@ def search_path(request):
         z = int(request.POST['z'])
         pid = int(request.POST['id'])
         model = int(request.POST['model'])
+        random_road()
         approach = []
         if model == 3:
             approach = [Point.objects.get(name__contains=s) for s in request.POST['approach'].split(',')]

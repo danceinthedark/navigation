@@ -20,7 +20,7 @@ def obtain_road(root):
     for x in points:
         for item in f[x]:
             if node[item['x']] > 0 and item['x'] > x:
-                link.append({"source": str(x), "target": str(item['x']), 'value': item['rate']})
+                link.append({"source": str(x), "target": str(item['x']), 'value': 1-item['rate']})
     return nodes, link
 
 def store():
