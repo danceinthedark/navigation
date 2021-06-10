@@ -64,7 +64,7 @@ def is_on(x, y, z, point0, point1):
     y1 = point1['y'] - y
     len0 = sqrt(sqr(x0) + sqr(y0))
     len1 = sqrt(sqr(x1) + sqr(y1))
-    return (x0 * x1 + y0 * y1) <= -0.9*(len0 * len1)
+    return (x0 * x1 + y0 * y1) <= -0.8*(len0 * len1)
 
 
 def sqr(x):
