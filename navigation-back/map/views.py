@@ -37,10 +37,11 @@ def gettime(request):
 
 
 def choose_bus(start, end, time):
-    # 根据系统运行时间以及在第一个校园所花费的时间决定所选交通方式
+    # 根据系统运行时间以及在第一个校园所花费的时间决定所选交通方式（默认24min为一天24h,系统1s为真实的6s）
     time = time / 60 + ((timezone.now() - start_time).seconds) / 10
     time -= time // 24 * 24
     school_bus = 0
+    # 匹配乘车表
     for launch in schoolbus_table:
         if launch >= time:
             school_bus = launch - time + 1
@@ -66,7 +67,10 @@ def search_path(request):
         z = int(request.POST['z'])
         pid = int(request.POST['id'])
         model = int(request.POST['model'])
-        random_road()
+        global last_update
+        if (timezone.now() - last_update).seconds > 120:
+            last_update = timezone.now()
+            random_road()
         approach = []
         if model == 3:
             approach = [Point.objects.get(name__contains=s) for s in request.POST['approach'].split(',')]
@@ -76,7 +80,7 @@ def search_path(request):
         root2 = dest.belong.id if dest.belong.id < 3 else dest.belong.belong.id
         approach1 = []
         approach2 = []
-        # 将途径点划分到两个校区内（若有两个校区）
+        # 将途径点划分到两个校区内（若起始点、终点、途径点不在同一个校区）
         for point in approach:
             root = point.belong.id if point.belong.id < 3 else point.belong.belong.id
             if root == root1:
@@ -85,55 +89,72 @@ def search_path(request):
                 approach2.append(point.id)
         last = timezone.now()
         if root1 == root2:
+            # 起始点和终点在一个校区内
             if model == 0:
+                # 进行路径最短规划
                 result = find_path_dist(pid, x, y, z, dest, speeds['步行'], '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
             elif model == 1:
+                # 进行时间最短规划
                 result = find_path_time(pid, x, y, z, dest, speeds['步行'], '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
             elif model == 2:
+                # 进行交通工具时间最短规划
                 result = find_path_time(pid, x, y, z, dest, speeds['自行车'], '自行车')[0]
                 cost_time = (timezone.now() - last).microseconds
             else:
+                # 进行途径点路径最短规划
                 if len(approach2) == 0:
+                    # 途径点与起始点和终点在一个校区
                     result = find_approach_dist(pid, x, y, z, dest, approach1, speeds['步行'], '步行')[0]
                     cost_time = (timezone.now() - last).microseconds
                 else:
+                    # 途径点与起始点和终点不在一个校区，此时采取直接去另一个校区把途径点走完再回到本校区把剩下的途径点走完去终点
                     door1 = Point.objects.get(id=root1).inner_points.get(name__contains="校门")
                     root2 = 3 ^ root1
                     door2 = Point.objects.get(id=root2).inner_points.get(name__contains="校门")
                     total = 0
+                    # 从出发点前往校门，不途径任何点
                     [result, time] = find_approach_dist(pid, x, y, z, door1, [], speeds['步行'], '步行')
                     total += time
+                    # 选择交通工具
                     result += choose_bus(door1, door2, time)
                     total += result[-1]['time']
+                    # 从校区2将途径点全部经过后回到校门
                     [result1, time] = \
                         find_approach_dist(door2.belong.id, door2.x, door2.y, door2.z, door2, approach2, speeds['步行'],
                                            '步行')
                     result += result1
                     total += time
+                    # 选择交通工具
                     result += choose_bus(door2, door1, total)
+                    # 从校门出发将校区1的所有途径点经过后前往终点
                     result += find_approach_dist(pid, door1.x, door1.y, door1.z, dest, approach1, speeds['步行'], '步行')[0]
                     cost_time = (timezone.now() - last).microseconds
         else:
+            # 起始点和终点不在一个校区内，此时采取先在起始点校区走完所有途径点后再去目的地所在校区走完剩下途径点
             door1 = Point.objects.get(id=root1).inner_points.get(name__contains="校门")
             door2 = Point.objects.get(id=root2).inner_points.get(name__contains="校门")
             if model == 0:
+                # 进行路径最短规划
                 [result, time] = find_path_dist(pid, x, y, z, door1, speeds['步行'], '步行')
                 result += choose_bus(door1, door2, time)
                 result += find_path_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['步行'], '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
             elif model == 1:
+                # 进行时间最短规划
                 [result, time] = find_path_time(pid, x, y, z, door1, speeds['步行'], '步行')
                 result += choose_bus(door1, door2, time)
                 result += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['步行'], '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
             elif model == 2:
+                # 进行交通工具时间最短规划
                 [result, time] = find_path_time(pid, x, y, z, door1, speeds['自行车'], '自行车')
                 result += choose_bus(door1, door2, time)
                 result += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['自行车'], '自行车')[0]
                 cost_time = (timezone.now() - last).microseconds
             else:
+                # 进行途径点路径最短规划
                 [result, time] = find_approach_dist(pid, x, y, z, door1, approach1, speeds['步行'], '步行')
                 result += choose_bus(door1, door2, time)
                 result += \
@@ -150,6 +171,7 @@ def search_path(request):
 @csrf_exempt
 @require_POST
 def writeLog(request):
+    # 写入用户日志
     with open("navigation.log", 'a', encoding='utf-8')as f:
         express = timezone.now().__format__('%Y-%m-%d %H:%M:%S') + ' ' + request.POST['log'] + '\n'
         f.writelines(express)
@@ -159,6 +181,7 @@ def writeLog(request):
 @csrf_exempt
 @require_POST
 def finish(request):
+    # 程序结束运行，将随机的道路拥挤度结果写入数据库
     store()
     return JsonResponse({"result": "success"})
 
@@ -166,6 +189,7 @@ def finish(request):
 @csrf_exempt
 @require_POST
 def log(request):
+    # 读取用户日志
     with open("navigation.log", encoding='utf-8') as fd:
         lines = fd.readlines()
         return JsonResponse({"result": "success", "log": lines})
@@ -174,13 +198,16 @@ def log(request):
 @csrf_exempt
 @require_POST
 def around(request):
+    # 查询用户所在地周围的节点，并返回距离用户的距离
     x = float(request.POST['x'])
     y = float(request.POST['y'])
     z = int(request.POST['z'])
     root = request.POST['id']
     root = Point.objects.get(id=root)
+    # 列出该图上所有有意义的且与用固话在同一层的节点作为备选节点
     points = list(root.inner_points.filter(z=z).filter(name__regex='^[\S\s]+'))
 
+    # 使用用户所在地点的相邻两节点做dijkstra，求得用户到所有点的最短距离
     nearer_points = find_nearer_point(root, x, y, z)
     overall = eucid_distance(x, y, z, nearer_points[0])
     d = [item + overall for item in dijkstra(nearer_points[0])]
@@ -188,6 +215,8 @@ def around(request):
         overall = eucid_distance(x, y, z, nearer_points[1])
         g = dijkstra(nearer_points[1])
         d = [min(d[i], g[i] + overall) for i in range(len(d))]
+
+    # 备选节点按到用户距离从小到大排序并返回
     points.sort(key=lambda item: d[item.id])
     if len(points) < 5:
         near_points = points
@@ -203,6 +232,7 @@ def around(request):
 @csrf_exempt
 @require_POST
 def canteen(request):
+    # 返回用户到几个食堂的距离，若不在一个校区内则返回-1，具体实现方式同around
     x = float(request.POST['x'])
     y = float(request.POST['y'])
     z = int(request.POST['z'])
@@ -230,7 +260,9 @@ def canteen(request):
 
 
 def import_data(file):
+    # 导入地图数据
     import os
+    # 导入点集
     pid = open(os.path.join(file, 'x_y_id.txt'), encoding='utf-8')
     lines = pid.readlines()
     campus = Point.objects.get(name=file)
@@ -241,7 +273,7 @@ def import_data(file):
             item.name = point[3]
             item.save()
     pid.close()
-
+    # 导入边集
     pid = open(os.path.join(file, 'x1_y1_x2_y2_dist_line1_line2.txt'), encoding='utf-8')
     lines = pid.readlines()
     for line in lines:
@@ -254,7 +286,10 @@ def import_data(file):
         road.points.add(point2)
     pid.close()
 
+
 def import_architecture(id):
+    # 导入建筑物内地图
+    # 导入点集
     pid = open(os.path.join('architecture', "dot_f{}.txt".format(id)), encoding="utf-8")
     lines = pid.readlines()
     for line in lines:
@@ -271,6 +306,7 @@ def import_architecture(id):
             point.save()
 
     pid.close()
+    # 导入边集
     pid = open(os.path.join('architecture', "draw_f{}.txt".format(id)), encoding="utf-8")
     lines = pid.readlines()
     for line in lines:
@@ -292,6 +328,7 @@ def import_architecture(id):
 
 
 def import_picture():
+    # 导入图片
     files = os.listdir(settings.IMAGE_DIR)
     for file_name in files:
         ids = file_name.replace('.svg', '').split('_')
@@ -318,4 +355,4 @@ now = 1
 schoolbus_table = [6, 7, 9, 12, 13, 15, 18, 19]  # one day is 24minutes，denote 24 hours
 schoolbus_cost = 1
 bus_cost = 2
-start_time = timezone.now()
+last_update = start_time = timezone.now()
