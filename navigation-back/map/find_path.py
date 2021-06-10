@@ -274,7 +274,7 @@ def dijkstra_time(start_x, start_y, start_z, start_point, dest, speeds, move_mod
         if s['belong'] != t['belong'] or s['z'] != t['z']:
             if len(path1) > 1:
                 result.append({"type": 1, "dist": d, "total_time": sum(time), "time": time,
-                               "z": s['z'], "path": path1, "move_model": move_model, "id": s['belong']})
+                               "z": s['z'], "path": path1, "move_model": move_model if s['belong']<3 else "步行", "id": s['belong']})
             time = []
             path1 = []
             d = 0
@@ -284,7 +284,7 @@ def dijkstra_time(start_x, start_y, start_z, start_point, dest, speeds, move_mod
         path1.append((t['x'], t['y']))
     if len(path1) > 1:
         result.append({"type": 1, "dist": d, "total_time": sum(time), "time": time, "z": points[path[-1]]['z'],
-                       "path": path1, "move_model": move_model, "id": points[path[-1]]['belong']})
+                       "path": path1, "move_model": move_model if points[path[-1]]['belong']<3 else "步行", "id": points[path[-1]]['belong']})
     return [result, time_consuming[dest] + eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
 
 

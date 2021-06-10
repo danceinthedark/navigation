@@ -80,41 +80,41 @@ def search_path(request):
         last = timezone.now()
         if root1 == root2:
             if model == 0:
-                result = find_path_dist(pid, x, y, z, dest, speeds['walk'], 'walk')[0]
+                result = find_path_dist(pid, x, y, z, dest, speeds['步行'], '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
             elif model == 1:
-                result = find_path_time(pid, x, y, z, dest, speeds['walk'], 'walk')[0]
+                result = find_path_time(pid, x, y, z, dest, speeds['步行'], '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
             elif model == 2:
-                result = find_path_time(pid, x, y, z, dest, speeds['bike'], 'bike')[0]
+                result = find_path_time(pid, x, y, z, dest, speeds['自行车'], '自行车')[0]
                 cost_time = (timezone.now() - last).microseconds
             else:
-                result = find_approach_dist(pid, x, y, z, dest, approach1, speeds['walk'], 'walk')[0]
+                result = find_approach_dist(pid, x, y, z, dest, approach1, speeds['步行'], '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
         else:
             door1 = Point.objects.get(id=root1).inner_points.get(name__contains="校门")
             door2 = Point.objects.get(id=root2).inner_points.get(name__contains="校门")
             if model == 0:
-                [result, time] = find_path_dist(pid, x, y, z, door1, speeds['walk'], 'walk')
+                [result, time] = find_path_dist(pid, x, y, z, door1, speeds['步行'], '步行')
                 result += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
-                result += find_path_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
+                result += find_path_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['步行'], '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
             elif model == 1:
-                [result, time] = find_path_time(pid, x, y, z, door1, speeds['walk'], 'walk')
+                [result, time] = find_path_time(pid, x, y, z, door1, speeds['步行'], '步行')
                 result += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
-                result += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['walk'], 'walk')[0]
+                result += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['步行'], '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
             elif model == 2:
-                [result, time] = find_path_time(pid, x, y, z, door1, speeds['bike'], 'bike')
+                [result, time] = find_path_time(pid, x, y, z, door1, speeds['自行车'], '自行车')
                 result += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
-                result += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['bike'], 'bike')[0]
+                result += find_path_time(door2.belong.id, door2.x, door2.y, door2.z, dest, speeds['自行车'], '自行车')[0]
                 cost_time = (timezone.now() - last).microseconds
             else:
-                [result, time] = find_approach_dist(pid, x, y, z, door1, approach1, speeds['walk'], 'walk')
+                [result, time] = find_approach_dist(pid, x, y, z, door1, approach1, speeds['步行'], '步行')
                 result += choose_bus(door1, door2, time + (timezone.now() - start_time).seconds)
                 result += \
-                    find_approach_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, approach1, speeds['walk'],
-                                       'walk')[0]
+                    find_approach_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, approach1, speeds['步行'],
+                                       '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
 
         return JsonResponse({"result": "success", "cost_time": cost_time, "solution": result})
@@ -287,7 +287,7 @@ if Point.objects.count() == 0:
 init()
 walk_speed = [5, 5]
 bike_speed = [5, 12]
-speeds = {'walk': walk_speed, 'bike': bike_speed}
+speeds = {'步行': walk_speed, '自行车': bike_speed}
 last_update_road = timezone.now()
 now = 1
 schoolbus_table = [6, 7, 9, 12, 13, 15, 18, 19]  # one day is 24minutes，denote 24 hours
