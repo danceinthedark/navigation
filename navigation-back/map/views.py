@@ -159,7 +159,7 @@ def search_path(request):
                 [result, time] = find_approach_dist(pid, x, y, z, door1, approach1, speeds['步行'], '步行')
                 result += choose_bus(door1, door2, time)
                 result += \
-                    find_approach_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, approach1, speeds['步行'],
+                    find_approach_dist(door2.belong.id, door2.x, door2.y, door2.z, dest, approach2, speeds['步行'],
                                        '步行')[0]
                 cost_time = (timezone.now() - last).microseconds
 
