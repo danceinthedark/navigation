@@ -16,6 +16,7 @@ from .models import Road, Point
 @csrf_exempt
 @require_POST
 def give_map(request):
+    # 获取道路拥挤度
     random_road()
     global f
     try:
@@ -28,13 +29,15 @@ def give_map(request):
 @csrf_exempt
 @require_POST
 def gettime(request):
-    time = (timezone.now() - start_time).seconds / 60
+    #获取当前时间（默认24min为一天24h）
+    time = (timezone.now() - start_time).seconds / 10
     time -= time // 24 * 24
     return JsonResponse({"time": time})
 
 
 def choose_bus(start, end, time):
-    time = (time + (timezone.now() - start_time).seconds) / 60
+    # 根据系统运行时间以及在第一个校园所花费的时间决定所选交通方式
+    time = time / 60 + ((timezone.now() - start_time).seconds) / 10
     time -= time // 24 * 24
     school_bus = 0
     for launch in schoolbus_table:
@@ -44,11 +47,11 @@ def choose_bus(start, end, time):
     bus = 1 - (time - int(time)) + bus_cost
     dest = 1 if start == Point.objects.get(id=2) else 0
     if school_bus > bus:
-        return [{'type': 2, 'path': [(start.x, start.y, start.z), (end.x, end.y, end.z)], 'dist': 0, 'time': bus * 3600,
-                 'move_model': 'bus', 'id': dest}]
+        return [{'type': 2, 'path': [(start.x, start.y, start.z), (end.x, end.y, end.z)], 'dist': 0, 'time': bus * 60,
+                 'move_model': '公交车', 'id': dest}]
     else:
-        return [{'type': 2, 'path': [(start.x, start.y, start.z), (end.x, end.y, end.z)], 'dist': 0, 'time': bus * 3600,
-                 'move_model': 'bus', 'id': dest}]
+        return [{'type': 2, 'path': [(start.x, start.y, start.z), (end.x, end.y, end.z)], 'dist': 0, 'time': bus * 60,
+                 'move_model': '校车', 'id': dest}]
 
 
 @csrf_exempt
@@ -71,6 +74,7 @@ def search_path(request):
         root2 = dest.belong.id if dest.belong.id < 3 else dest.belong.belong.id
         approach1 = []
         approach2 = []
+        #将途径点
         for point in approach:
             root = point.belong.id if point.belong.id < 3 else point.belong.belong.id
             if root == root1:
