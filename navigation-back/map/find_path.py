@@ -159,6 +159,7 @@ def dijkstra_dist(start_x, start_y, start_z, start_point, dest, speeds, move_mod
     cost_time = [1e10] * (n + 1)
     visit = [0] * (n + 1)
     front_point = [0] * (n + 1)
+    front_path = [0] * (n + 1)
     dist[start_point['id']] = 0
     cost_time[start_point['id']] = 0
     for round in range(n):
@@ -177,6 +178,7 @@ def dijkstra_dist(start_x, start_y, start_z, start_point, dest, speeds, move_mod
                     dist[y] = dist[x] + road['long']
                     cost_time[y] = cost_time[x] + road['long'] / (road['rate'] * speeds[road['type']])
                     front_point[y] = x
+                    front_path[y] = road['type'] if move_model=='自行车' else 0
             visit[nearset_point] = 1
 
     path = [dest]
@@ -186,35 +188,38 @@ def dijkstra_dist(start_x, start_y, start_z, start_point, dest, speeds, move_mod
     path.reverse()
     d = eucid_distance(start_x, start_y, start_z, path[0])
     result = []
-    total_time=0
+    total_time = 0
+    now_time = 0
     if d > 1e-2:
-        total_time = eucid_time(start_x, start_y, start_z, start_point['id'], speeds)
-        time = [total_time]
+        types = [0]
         path1 = [(start_x, start_y), (start_point['x'], start_point['y'])]
     else:
-        time = []
+        types = []
         path1 = [(start_point['x'], start_point['y'])]
     for i in range(len(path) - 1):
         s = points[path[i]]
         t = points[path[i + 1]]
         if s['belong'] != t['belong'] or s['z'] != t['z']:
             if len(path1) > 1:
-                total_time += sum(time) / 30
-                result.append({"type": 1, "dist": d, "total_time": sum(time) / 30, "time": time,
+                total_time += now_time
+                result.append({"type": 1, "dist": d, "total_time": now_time / 30, "time": types,
                                "z": s['z'], "path": path1, "move_model": move_model, "id": s['belong']})
-            time = []
+            types = []
+            now_time = 0
             path1 = []
             d = 0
         else:
             d += dist[t['id']] - dist[s['id']]
-            time.append(cost_time[t['id']] - cost_time[s['id']])
+            now_time += cost_time[t['id']] - cost_time[s['id']]
+            types.append(front_path[path[i+1]])
         path1.append((t['x'], t['y']))
     if len(path1) > 1:
-        result.append({"type": 1, "dist": d, "total_time": sum(time) / 30, "time": time,
+        result.append({"type": 1, "dist": d, "total_time": now_time / 30, "time": types,
                        "z": points[path[-1]]['z'], "path": path1, "move_model": move_model,
                        "id": points[path[-1]]['belong']})
-        total_time+=sum(time)/30
-    return [result, dist[dest] + eucid_distance(start_x, start_y, start_z, start_point['id']),total_time]
+        total_time += now_time
+    total_time /= 30
+    return [result, dist[dest] + eucid_distance(start_x, start_y, start_z, start_point['id']), total_time]
 
 
 def find_path_dist(root, start_x, start_y, start_z, dest, speeds, move_model):
@@ -224,17 +229,17 @@ def find_path_dist(root, start_x, start_y, start_z, dest, speeds, move_model):
     shortest_dist = 1e9
     global all
     all = root.inner_points.all() | dest.belong.inner_points.all()
-    if root.id > 2  and root != dest.belong:
+    if root.id > 2 and root != dest.belong:
         all |= root.belong.inner_points.all()
     all = [i.id for i in all]
-    shortest_time=0
+    shortest_time = 0
     for point in nearer_points:
-        [path, dist,time] = dijkstra_dist(start_x, start_y, start_z, point, dest.id, speeds, move_model)
+        [path, dist, time] = dijkstra_dist(start_x, start_y, start_z, point, dest.id, speeds, move_model)
         if dist < shortest_dist:
             shortest_path = path
             shortest_dist = dist
-            shortest_time=time
-    return [shortest_path, time]
+            shortest_time = time
+    return [shortest_path, shortest_time]
 
 
 def dijkstra_time(start_x, start_y, start_z, start_point, dest, speeds, move_model):
@@ -243,6 +248,7 @@ def dijkstra_time(start_x, start_y, start_z, start_point, dest, speeds, move_mod
     time_consuming = [1e10] * (n + 1)
     visit = [0] * (n + 1)
     front_point = [0] * (n + 1)
+    front_path = [0] * (n + 1)
     time_consuming[start_point['id']] = 0
     for round in range(n):
         nearset_point = 0
@@ -259,6 +265,7 @@ def dijkstra_time(start_x, start_y, start_z, start_point, dest, speeds, move_mod
                 if time_consuming[y] > time_consuming[x] + road['long'] / (road['rate'] * speeds[road['type']]):
                     time_consuming[y] = time_consuming[x] + road['long'] / (road['rate'] * speeds[road['type']])
                     front_point[y] = x
+                    front_path[y] = road['type'] if move_model=='自行车' else 0
             visit[nearset_point] = 1
 
     path = [dest]
@@ -268,32 +275,35 @@ def dijkstra_time(start_x, start_y, start_z, start_point, dest, speeds, move_mod
     path.reverse()
     result = []
     d = eucid_distance(start_x, start_y, start_z, path[0])
+    now_time = 0
     if d > 1e-2:
-        time = [eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
+        types = [0]
         path1 = [(start_x, start_y), (start_point['x'], start_point['y'])]
     else:
-        time = []
+        types = []
         path1 = [(start_point['x'], start_point['y'])]
     for i in range(len(path) - 1):
         s = points[path[i]]
         t = points[path[i + 1]]
         if s['belong'] != t['belong'] or s['z'] != t['z']:
             if len(path1) > 1:
-                result.append({"type": 1, "dist": d, "total_time": sum(time) / 30, "time": time,
+                result.append({"type": 1, "dist": d, "total_time": now_time / 30, "time": types,
                                "z": s['z'], "path": path1, "move_model": move_model if s['belong'] < 3 else "步行",
                                "id": s['belong']})
-            time = []
+            types = []
             path1 = []
+            now_time = 0
             d = 0
         else:
             d += eucid_distance(s['x'], s['y'], s['z'], path[i + 1])
-            time.append(time_consuming[t['id']] - time_consuming[s['id']])
+            now_time += time_consuming[t['id']] - time_consuming[s['id']]
+            types.append(front_path[path[i+1]])
         path1.append((t['x'], t['y']))
     if len(path1) > 1:
-        result.append({"type": 1, "dist": d, "total_time": sum(time) / 30, "time": time, "z": points[path[-1]]['z'],
+        result.append({"type": 1, "dist": d, "total_time": now_time / 30, "time": types, "z": points[path[-1]]['z'],
                        "path": path1, "move_model": move_model if points[path[-1]]['belong'] < 3 else "步行",
                        "id": points[path[-1]]['belong']})
-    return [result, time_consuming[dest] + eucid_time(start_x, start_y, start_z, start_point['id'], speeds)]
+    return [result, (time_consuming[dest] + eucid_time(start_x, start_y, start_z, start_point['id'], speeds))/30]
 
 
 def find_path_time(root, start_x, start_y, start_z, dest, speeds, move_model):
