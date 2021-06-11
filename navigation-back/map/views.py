@@ -210,6 +210,7 @@ def around(request):
 
     # 使用用户所在地点的相邻两节点做dijkstra，求得用户到所有点的最短距离
     nearer_points = find_nearer_point(root, x, y, z)
+    print(x, y, z, nearer_points)
     overall = eucid_distance(x, y, z, nearer_points[0])
     d = [item + overall for item in dijkstra(nearer_points[0])]
     if len(nearer_points) > 1:

@@ -127,8 +127,8 @@ def init():
     for i in range(n):
         if mxx[i] < mix[i]:
             continue
-        x = (mxx[i] - mix[i]) / 2000
-        y = (mxy[i] - miy[i]) / 2000
+        x = (mxx[i] - mix[i]) / 900
+        y = (mxy[i] - miy[i]) / 900
         scale[i] = 2 * sqrt(x * x + y * y)
     for road in Road.objects.all():
         [p1, p2] = road.points.all()
