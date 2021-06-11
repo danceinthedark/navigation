@@ -130,7 +130,7 @@ def search_path(request):
                     # 选择交通工具
                     result += choose_bus(door2, door1, total)
                     # 从校门出发将校区1的所有途径点经过后前往终点
-                    result += find_approach_dist(pid, door1.x, door1.y, door1.z, dest, approach1, speeds['步行'], '步行')[0]
+                    result += find_approach_dist(door1.belong.id, door1.x, door1.y, door1.z, dest, approach1, speeds['步行'], '步行')[0]
                     cost_time = (timezone.now() - last).microseconds
         else:
             # 起始点和终点不在一个校区内，此时采取先在起始点校区走完所有途径点后再去目的地所在校区走完剩下途径点
@@ -227,7 +227,7 @@ def around(request):
     points = []
     for point in near_points:
         s = str(point.name).split('_')[0]
-        points.append({'name': s, 'dist': d[point.id]})
+        points.append({'name': s, 'dist': d[point.id].__format__(".2f")})
     return JsonResponse({'result': "success", "points": points})
 
 
@@ -243,6 +243,7 @@ def canteen(request):
 
     ls = ["西土城教工食堂", "西土城学生食堂", "沙河教工食堂", "沙河学生食堂"]
     nearer_points = find_nearer_point(root, x, y, z)
+    print(x, y, z, nearer_points)
     overall = eucid_distance(x, y, z, nearer_points[0])
     d = [item + overall for item in dijkstra(nearer_points[0])]
     if len(nearer_points) > 1:
@@ -257,7 +258,7 @@ def canteen(request):
             x = min(x, d[point.id])
         if x == 1e10:
             x = -1
-        result.append({"name": name, "dist": x})
+        result.append({"name": name, "dist": x.__format__(".2f")})
     return JsonResponse({'result': "success", "points": result})
 
 
